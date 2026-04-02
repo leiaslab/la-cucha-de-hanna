@@ -121,6 +121,11 @@ export function ProductSaleConfigurator({
     onAdded?.();
   };
 
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleAddToCart();
+  };
+
   const wrapperClassName = compact
     ? "flex h-full flex-col space-y-2.5 rounded-[1.4rem] border border-slate-200 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
     : "space-y-4 rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-[0_18px_36px_rgba(15,23,42,0.08)]";
@@ -137,14 +142,15 @@ export function ProductSaleConfigurator({
     product.saleType === "weight"
       ? formatQuantity(selectedQuantity, product.stockUnit)
       : `${Math.round(selectedQuantity || 0).toLocaleString("es-AR")} un`;
+  const quantityLabel = product.stockUnit === "liter" ? "Litros" : "Kilos";
 
   return (
-    <div className={wrapperClassName} onClick={(event) => event.stopPropagation()}>
+    <form className={wrapperClassName} onClick={(event) => event.stopPropagation()} onSubmit={handleSubmit}>
       {product.saleType === "weight" ? (
         <div className="space-y-2.5">
           <div className="space-y-1.5">
             <label htmlFor={`weight-quantity-${product.id}`} className={labelClassName}>
-              Kilos
+              {quantityLabel}
             </label>
             <input
               id={`weight-quantity-${product.id}`}
@@ -226,8 +232,7 @@ export function ProductSaleConfigurator({
 
       <div className={`flex flex-col gap-2 ${compact ? "mt-auto" : ""}`}>
         <button
-          type="button"
-          onClick={() => void handleAddToCart()}
+          type="submit"
           disabled={!canAddToCart}
           className={`w-full rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 ${
             compact ? "py-2.5" : "py-3"
@@ -247,6 +252,6 @@ export function ProductSaleConfigurator({
           </button>
         )}
       </div>
-    </div>
+    </form>
   );
 }

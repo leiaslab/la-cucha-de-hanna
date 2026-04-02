@@ -1,50 +1,24 @@
 import Dexie, { Table } from "dexie";
+import type { CartItem, Order, Product, Shift } from "./src/lib/pos-types";
 
-export type SaleType = "fixed" | "weight";
-export type StockUnit = "unit" | "kg";
-export type PaymentMethod = "cash" | "mercado_pago" | "transfer";
-
-export interface Product {
-  id?: number;
-  name: string;
-  price: number;
-  stock: number;
-  category: string;
-  slug: string;
-  saleType: SaleType;
-  stockUnit: StockUnit;
-  description?: string;
-  imageUrl?: string;
-  imageBlob?: Blob;
-  lastUpdated: number;
-}
-
-export interface CartItem {
-  id?: number;
-  productId: number;
-  name: string;
-  price: number;
-  quantity: number;
-  category: string;
-  saleType: SaleType;
-  stockUnit: StockUnit;
-  step: number;
-}
-
-export interface Order {
-  id?: number;
-  items: CartItem[];
-  total: number;
-  status: "pending" | "synced";
-  createdAt: number;
-  notes?: string;
-  paymentMethod?: PaymentMethod;
-}
+export type {
+  CartItem,
+  ClientRecord,
+  Order,
+  PaymentMethod,
+  PdfRecord,
+  Product,
+  SaleType,
+  Shift,
+  ShiftStatus,
+  StockUnit,
+} from "./src/lib/pos-types";
 
 export class PetShopDatabase extends Dexie {
   products!: Table<Product>;
   cart!: Table<CartItem>;
   orders!: Table<Order>;
+  shifts!: Table<Shift>;
 
   constructor() {
     super("PetShopDB");
@@ -53,6 +27,7 @@ export class PetShopDatabase extends Dexie {
       products: "++id, name, slug, category, stock",
       cart: "++id, productId",
       orders: "++id, status, createdAt",
+      shifts: "++id, status, openedAt, closedAt",
     });
 
     this.version(4)
@@ -60,6 +35,7 @@ export class PetShopDatabase extends Dexie {
         products: "++id, name, slug, category, stock, saleType, stockUnit",
         cart: "++id, productId",
         orders: "++id, status, createdAt",
+        shifts: "++id, status, openedAt, closedAt",
       })
       .upgrade(async (tx) => {
         await tx.table("products").toCollection().modify((product) => {
@@ -73,7 +49,7 @@ export class PetShopDatabase extends Dexie {
           const nextStockUnit = item.stockUnit ?? (nextSaleType === "weight" ? "kg" : "unit");
           item.saleType = nextSaleType;
           item.stockUnit = nextStockUnit;
-          item.step = item.step ?? (nextStockUnit === "kg" ? 0.25 : 1);
+          item.step = item.step ?? (nextStockUnit === "unit" ? 1 : 0.25);
           item.category = item.category ?? "Varios";
         });
 
@@ -87,9 +63,48 @@ export class PetShopDatabase extends Dexie {
               category: item.category ?? "Varios",
               saleType: nextSaleType,
               stockUnit: nextStockUnit,
-              step: item.step ?? (nextStockUnit === "kg" ? 0.25 : 1),
+              step: item.step ?? (nextStockUnit === "unit" ? 1 : 0.25),
             };
           });
+        });
+      });
+
+    this.version(5)
+      .stores({
+        products: "++id, name, slug, category, stock, saleType, stockUnit, cost",
+        cart: "++id, productId",
+        orders: "++id, status, createdAt",
+        shifts: "++id, status, openedAt, closedAt",
+      })
+      .upgrade(async (tx) => {
+        await tx.table("products").toCollection().modify((product) => {
+          product.cost = product.cost ?? product.price ?? 0;
+        });
+      });
+
+    this.version(6)
+      .stores({
+        products: "++id, name, slug, category, stock, saleType, stockUnit, cost, lowStockAlertThreshold",
+        cart: "++id, productId",
+        orders: "++id, status, createdAt",
+        shifts: "++id, status, openedAt, closedAt",
+      })
+      .upgrade(async (tx) => {
+        await tx.table("products").toCollection().modify((product) => {
+          product.lowStockAlertThreshold = product.lowStockAlertThreshold ?? 5;
+        });
+      });
+
+    this.version(7)
+      .stores({
+        products: "++id, name, slug, category, stock, saleType, stockUnit, cost, lowStockAlertThreshold",
+        cart: "++id, productId",
+        orders: "++id, status, createdAt, shiftId",
+        shifts: "++id, status, openedAt, closedAt",
+      })
+      .upgrade(async (tx) => {
+        await tx.table("orders").toCollection().modify((order) => {
+          order.shiftId = order.shiftId ?? undefined;
         });
       });
 
@@ -98,7 +113,9 @@ export class PetShopDatabase extends Dexie {
         {
           name: "Alimento Pro Plan Perro Adulto",
           price: 1500,
+          cost: 1050,
           stock: 30,
+          lowStockAlertThreshold: 5,
           category: "Perros",
           slug: "alimento-pro-plan-perro-adulto",
           saleType: "weight",
@@ -109,7 +126,9 @@ export class PetShopDatabase extends Dexie {
         {
           name: "Rascador para Gatos Multinivel",
           price: 25000,
+          cost: 18000,
           stock: 2,
+          lowStockAlertThreshold: 2,
           category: "Gatos",
           slug: "rascador-para-gatos-multinivel",
           saleType: "fixed",
@@ -120,7 +139,9 @@ export class PetShopDatabase extends Dexie {
         {
           name: "Cucha para Perro Termica Grande",
           price: 35000,
+          cost: 25000,
           stock: 5,
+          lowStockAlertThreshold: 1,
           category: "Perros",
           slug: "cucha-perro-termica-grande",
           saleType: "fixed",

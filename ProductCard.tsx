@@ -22,6 +22,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
   const displayUrl = blobUrl || product.imageUrl;
   const priceLabel = formatPriceLabel(product);
   const stockBadgeLabel = formatQuantity(product.stock, product.stockUnit);
+  const isLowStock = product.stock > 0 && product.stock <= (product.lowStockAlertThreshold ?? 5);
   const nameFontSize = getAdaptiveFontSize(product.name, 13, 9.5, 0.1);
   const priceFontSize = getAdaptiveFontSize(priceLabel, 15, 11, 0.12);
 
@@ -35,7 +36,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
 
   return (
     <div
-      className={`group relative mx-auto aspect-square w-full max-w-[180px] cursor-pointer overflow-hidden rounded-2xl border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
+      className={`group relative mx-auto aspect-[4/5.3] w-full max-w-[188px] cursor-pointer overflow-hidden rounded-[1.5rem] border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
         isSelling ? "shadow-md ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900" : ""
       }`}
       onClick={onToggleSale}
@@ -48,12 +49,12 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
       role="button"
       tabIndex={0}
     >
-      <div className="flex h-full flex-col p-2">
+      <div className="flex h-full flex-col p-2.5">
         <div
-          className={`absolute right-1.5 top-1.5 z-10 rounded-lg px-1.5 py-0.5 text-[8.5px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
+          className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
             product.stock <= 0
               ? "bg-red-500 text-white"
-              : product.stock < 5
+              : isLowStock
                 ? "bg-amber-500 text-white"
                 : "bg-white/95 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
           }`}
@@ -61,8 +62,8 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           {product.stock <= 0 ? "Sin stock" : stockBadgeLabel}
         </div>
 
-        <div className="relative flex min-h-[7.25rem] flex-[0_0_58%] items-center justify-center overflow-hidden rounded-xl bg-white shadow-inner dark:bg-slate-800/30">
-          <div className="h-full w-full p-2 transition-transform duration-500 group-hover:scale-110">
+        <div className="relative flex min-h-[7.75rem] flex-[0_0_56%] items-center justify-center overflow-hidden rounded-[1.15rem] bg-white shadow-inner dark:bg-slate-800/30">
+          <div className="h-full w-full p-2.5 transition-transform duration-500 group-hover:scale-110">
             {displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -79,21 +80,21 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-between overflow-hidden px-1 pb-1 pt-2 text-center">
-          <div className="flex flex-1 items-center justify-center leading-none">
+        <div className="mt-2 flex flex-1 flex-col justify-between rounded-[1.05rem] border border-white/40 bg-white/60 px-2.5 pb-2.5 pt-2 text-center dark:border-slate-700 dark:bg-slate-800/45">
+          <div className="flex min-h-[3.2rem] items-center justify-center leading-none">
             <h3
-              className="line-clamp-2 font-bold text-slate-800 dark:text-slate-100"
+              className="line-clamp-3 font-bold text-slate-800 dark:text-slate-100"
               style={{
                 fontSize: nameFontSize,
-                lineHeight: "1.1",
+                lineHeight: "1.15",
               }}
             >
               {product.name}
             </h3>
           </div>
           <p
-            className="mt-1 shrink-0 font-black text-blue-600 dark:text-blue-400"
-            style={{ fontSize: priceFontSize }}
+            className="mt-2 min-h-[2.2rem] shrink-0 font-black text-blue-600 dark:text-blue-400"
+            style={{ fontSize: priceFontSize, lineHeight: "1.15" }}
           >
             {priceLabel}
           </p>

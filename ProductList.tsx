@@ -1,10 +1,12 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Product } from "./db";
 import { ProductCard } from "./ProductCard";
 import { ProductSaleOverlay } from "./ProductSaleOverlay";
+import { deleteProductRemote } from "./src/lib/api-client";
+import { showToast } from "./Toast";
 
 interface ProductListProps {
   onEditProduct: (product: Product) => void;
@@ -16,6 +18,7 @@ export function ProductList({ onEditProduct, extraControls, leadingContent }: Pr
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [activeSaleProductId, setActiveSaleProductId] = useState<number | null>(null);
+  const warnedStockRef = useRef(new Set<string>());
 
   const allProductsForCategories = useLiveQuery(() => db.products.toArray());
   const activeSaleProduct = useLiveQuery(
@@ -49,14 +52,37 @@ export function ProductList({ onEditProduct, extraControls, leadingContent }: Pr
     );
   }, [searchTerm, selectedCategory]);
 
+  useEffect(() => {
+    if (!allProductsForCategories) {
+      return;
+    }
+
+    allProductsForCategories.forEach((product) => {
+      const threshold = Math.max(0, product.lowStockAlertThreshold ?? 5);
+      if (product.stock > threshold) {
+        return;
+      }
+
+      const warningKey = `${product.id}-${product.stock}`;
+      if (warnedStockRef.current.has(warningKey)) {
+        return;
+      }
+
+      warnedStockRef.current.add(warningKey);
+      showToast(
+        `Alerta de stock: ${product.name} llego a ${product.stock.toLocaleString("es-AR")} ${product.stockUnit === "unit" ? "un" : product.stockUnit === "liter" ? "l" : "kg"}.`,
+        "warning",
+      );
+    });
+  }, [allProductsForCategories]);
+
   const handleDelete = async (id: number) => {
-    await db.products.delete(id);
-    await db.cart.where("productId").equals(id).delete();
+    await deleteProductRemote(id);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="relative">
+    <div className="flex h-full min-h-0 flex-col gap-6">
+      <div className="relative shrink-0">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:gap-5">
           {leadingContent && <div className="shrink-0 xl:self-end">{leadingContent}</div>}
           <select
@@ -89,26 +115,28 @@ export function ProductList({ onEditProduct, extraControls, leadingContent }: Pr
         </div>
       </div>
 
-      {filteredProducts === undefined ? (
-        <p className="py-10 text-center text-slate-500 dark:text-slate-300">Cargando catalogo local...</p>
-      ) : filteredProducts.length === 0 ? (
-        <p className="py-10 text-center text-slate-500 dark:text-slate-300">
-          No se encontraron productos para &quot;{searchTerm}&quot;
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              isSelling={activeSaleProductId === product.id}
-              onToggleSale={() =>
-                setActiveSaleProductId((current) => (current === product.id ? null : product.id ?? null))
-              }
-            />
-          ))}
-        </div>
-      )}
+      <div className="min-h-0 flex-1 xl:overflow-y-auto xl:pr-1">
+        {filteredProducts === undefined ? (
+          <p className="py-10 text-center text-slate-500 dark:text-slate-300">Cargando catalogo local...</p>
+        ) : filteredProducts.length === 0 ? (
+          <p className="py-10 text-center text-slate-500 dark:text-slate-300">
+            No se encontraron productos para &quot;{searchTerm}&quot;
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                isSelling={activeSaleProductId === product.id}
+                onToggleSale={() =>
+                  setActiveSaleProductId((current) => (current === product.id ? null : product.id ?? null))
+                }
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {activeSaleProduct && (
         <ProductSaleOverlay

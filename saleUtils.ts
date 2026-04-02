@@ -1,7 +1,7 @@
 import type { CartItem, Product, SaleType, StockUnit } from "./db";
 
 export function getQuantityStep(stockUnit: StockUnit) {
-  return stockUnit === "kg" ? 0.25 : 1;
+  return stockUnit === "unit" ? 1 : 0.25;
 }
 
 export function roundQuantity(value: number) {
@@ -9,24 +9,28 @@ export function roundQuantity(value: number) {
 }
 
 export function formatQuantity(value: number, stockUnit: StockUnit) {
-  if (stockUnit === "kg") {
+  if (stockUnit === "kg" || stockUnit === "liter") {
     return `${roundQuantity(value).toLocaleString("es-AR", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 3,
-    })} kg`;
+    })} ${stockUnit === "kg" ? "kg" : "l"}`;
   }
 
   return `${Math.round(value).toLocaleString("es-AR")} un`;
 }
 
-export function formatPriceLabel(product: Pick<Product, "price" | "saleType">) {
+export function formatPriceLabel(product: Pick<Product, "price" | "saleType" | "stockUnit">) {
   return product.saleType === "weight"
-    ? `$${product.price.toLocaleString("es-AR")} / kg`
+    ? `$${product.price.toLocaleString("es-AR")} / ${product.stockUnit === "liter" ? "l" : "kg"}`
     : `$${product.price.toLocaleString("es-AR")}`;
 }
 
-export function getSaleTypeLabel(saleType: SaleType) {
-  return saleType === "weight" ? "Por kilo" : "Precio fijo";
+export function getSaleTypeLabel(saleType: SaleType, stockUnit: StockUnit) {
+  if (saleType !== "weight") {
+    return "Precio fijo";
+  }
+
+  return stockUnit === "liter" ? "Por litro" : "Por kilo";
 }
 
 export function calculateQuantityFromAmount(amount: number, pricePerKg: number) {
@@ -58,7 +62,7 @@ export function canSellQuantity(
     return false;
   }
 
-  if (stockUnit === "kg") {
+  if (stockUnit === "kg" || stockUnit === "liter") {
     return quantity <= roundQuantity(stock);
   }
 

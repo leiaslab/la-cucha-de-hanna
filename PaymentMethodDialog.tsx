@@ -75,6 +75,7 @@ export function PaymentMethodDialog({
               key={option.value}
               type="button"
               onClick={() => onSelect(option.value)}
+              autoFocus={option.value === "cash"}
               className={`rounded-[1.4rem] border px-4 py-4 text-center transition-all hover:-translate-y-0.5 ${
                 option.value === "cash"
                   ? "border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100"

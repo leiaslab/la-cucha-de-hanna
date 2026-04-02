@@ -1,14 +1,29 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type Order } from "./db";
 import { formatQuantity, getLineTotal } from "./saleUtils";
 
 interface ReceiptPrintProps {
   order: Order | null;
+  onReadyToPrint?: () => void;
 }
 
-export function ReceiptPrint({ order }: ReceiptPrintProps) {
+export function ReceiptPrint({ order, onReadyToPrint }: ReceiptPrintProps) {
+  const [readyOrderId, setReadyOrderId] = useState<number | null>(null);
+  const didNotifyRef = useRef(false);
+  const isLogoReady = readyOrderId === (order?.id ?? null);
+
+  useEffect(() => {
+    if (!order || !isLogoReady || !onReadyToPrint || didNotifyRef.current) {
+      return;
+    }
+
+    didNotifyRef.current = true;
+    onReadyToPrint();
+  }, [isLogoReady, onReadyToPrint, order]);
+
   if (typeof document === "undefined" || !order) {
     return null;
   }
@@ -17,12 +32,16 @@ export function ReceiptPrint({ order }: ReceiptPrintProps) {
     <div className="receipt-print-root hidden bg-white px-4 py-5 text-black print:block">
       <div className="mx-auto w-full max-w-[360px]">
         <div className="mb-4 border-b border-black pb-3 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo.png"
-            alt="Logo La cucha de Hanna"
-            className="mx-auto mb-2 h-16 w-16 object-contain"
-          />
+          <div className="mx-auto mb-2 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="Logo La cucha de Hanna"
+              className="h-full w-full object-contain"
+              onLoad={() => setReadyOrderId(order.id ?? null)}
+              onError={() => setReadyOrderId(order.id ?? null)}
+            />
+          </div>
           <h1 className="text-xl font-bold uppercase tracking-tight">La cucha de Hanna</h1>
         </div>
 

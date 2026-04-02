@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order } from "./db";
+import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { ReceiptPrint } from "./ReceiptPrint";
@@ -19,7 +20,22 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
   const [notes, setNotes] = useState("");
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPrintQueued, setIsPrintQueued] = useState(false);
+
+  const queuePrint = (order: Order) => {
+    setPrintingOrder(order);
+    setIsPrintQueued(true);
+
+    const handleAfterPrint = () => {
+      setPrintingOrder(null);
+      setIsPrintQueued(false);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+  };
 
   const cartItems = useLiveQuery(async () => {
     const items = await db.cart.toArray();
@@ -45,11 +61,10 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
     }));
   });
 
-  const totalPendingOrdersCount =
-    useLiveQuery(() => db.orders.where("status").equals("pending").count()) || 0;
+  const totalOrdersCount = useLiveQuery(() => db.orders.count()) || 0;
 
-  const pendingOrders = useLiveQuery(async () => {
-    const orders = await db.orders.where("status").equals("pending").toArray();
+  const recentOrders = useLiveQuery(async () => {
+    const orders = await db.orders.orderBy("createdAt").reverse().toArray();
 
     if (!selectedDate) {
       return orders;
@@ -96,37 +111,31 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
     }
 
     try {
-      const printableOrder = await finalizeLocalOrder({
+      const result = await finalizeLocalOrder({
         cartItems,
         total,
         notes,
         paymentMethod: paymentMethod ?? "cash",
+        clientId: selectedClientId,
       });
 
       setNotes("");
+      setSelectedClientId(null);
       setIsPaymentDialogOpen(false);
       showToast("Venta procesada con exito", "success");
       setActiveTab("orders");
 
-      if (printableOrder) {
-        setPrintingOrder(printableOrder);
-        setTimeout(() => {
-          window.print();
-          setPrintingOrder(null);
-        }, 150);
+      if (result.order) {
+        queuePrint(result.order);
       }
     } catch (error) {
       console.error("Error al finalizar el pedido:", error);
-      showToast("No se pudo procesar el pedido localmente. Verifica el stock.", "error");
+      showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
     }
   };
 
   const handlePrint = (order: Order) => {
-    setPrintingOrder(order);
-    setTimeout(() => {
-      window.print();
-      setPrintingOrder(null);
-    }, 150);
+    queuePrint(order);
   };
 
   const handleClearCart = async () => {
@@ -156,7 +165,7 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
                   : "text-gray-400"
               }`}
             >
-              Pendientes ({totalPendingOrdersCount})
+              Ventas ({totalOrdersCount})
             </button>
           </div>
           <button onClick={onClose} className="text-2xl text-gray-500 hover:text-gray-700">
@@ -179,7 +188,12 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
                       <div>
                         <h4 className="font-bold">{item.name}</h4>
                         <p className="text-sm text-gray-500">
-                          ${item.price.toLocaleString()} {item.stockUnit === "kg" ? "/ kg" : ""}
+                          ${item.price.toLocaleString()}{" "}
+                          {item.stockUnit === "kg"
+                            ? "/ kg"
+                            : item.stockUnit === "liter"
+                              ? "/ l"
+                              : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -218,9 +232,13 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
               </div>
               {cartItems && cartItems.length > 0 && (
                 <div className="mt-4">
+                  <ClientSelector
+                    value={selectedClientId}
+                    onChange={setSelectedClientId}
+                  />
                   <label
                     htmlFor="order-notes"
-                    className="mb-1 block text-sm font-medium text-gray-700"
+                    className="mb-1 mt-4 block text-sm font-medium text-gray-700"
                   >
                     Notas del pedido (opcional)
                   </label>
@@ -258,20 +276,20 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
                 )}
               </div>
 
-              {pendingOrders === undefined ? (
-                <p className="py-10 text-center text-gray-500">Cargando pedidos...</p>
-              ) : pendingOrders.length === 0 ? (
+              {recentOrders === undefined ? (
+                <p className="py-10 text-center text-gray-500">Cargando ventas...</p>
+              ) : recentOrders.length === 0 ? (
                 <p className="py-10 text-center text-gray-500">
                   {selectedDate
-                    ? "No hay pedidos para esta fecha."
-                    : "No hay pedidos pendientes de sincronizacion."}
+                    ? "No hay ventas para esta fecha."
+                    : "Todavia no hay ventas registradas."}
                 </p>
               ) : (
-                pendingOrders.map((order) => (
+                recentOrders.map((order) => (
                   <div key={order.id} className="rounded-xl border border-amber-100 bg-amber-50 p-4">
                     <div className="mb-2 flex justify-between">
                       <span className="text-xs font-bold uppercase tracking-tighter text-amber-700">
-                        Pendiente de nube
+                        {order.status === "pending" ? "Pendiente de sincronizar" : "Guardada en Supabase"}
                       </span>
                       <span className="text-xs text-gray-500">
                         {new Date(order.createdAt).toLocaleString()}
@@ -333,7 +351,20 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
           </div>
         )}
 
-        <ReceiptPrint order={printingOrder} />
+        <ReceiptPrint
+          order={printingOrder}
+          onReadyToPrint={() => {
+            if (!isPrintQueued) {
+              return;
+            }
+
+            window.requestAnimationFrame(() => {
+              window.requestAnimationFrame(() => {
+                window.print();
+              });
+            });
+          }}
+        />
       </div>
 
       <PaymentMethodDialog

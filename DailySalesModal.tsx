@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type PaymentMethod } from "./db";
-import { getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { formatQuantity, getLineTotal } from "./saleUtils";
 
 interface DailySalesModalProps {
@@ -15,7 +14,7 @@ type ProductSummary = {
   name: string;
   quantity: number;
   total: number;
-  stockUnit: "kg" | "unit";
+  stockUnit: "kg" | "unit" | "liter";
 };
 
 export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
@@ -188,7 +187,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
             </div>
           </div>
 
-          <div className="grid flex-1 gap-6 overflow-hidden xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <div className="grid flex-1 gap-6 overflow-hidden">
             <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
               <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
                 Resumen por productos
@@ -224,66 +223,6 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
                       </div>
                     </div>
                   ))
-                )}
-              </div>
-            </section>
-
-            <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-              <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                Detalle de pedidos del mes
-              </h3>
-
-              <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-                {monthOrders === undefined ? (
-                  <p className="py-10 text-center text-slate-500 dark:text-slate-400">
-                    Cargando pedidos...
-                  </p>
-                ) : monthOrders.length === 0 ? (
-                  <p className="py-10 text-center italic text-slate-500 dark:text-slate-400">
-                    No hubo pedidos este mes todavia.
-                  </p>
-                ) : (
-                  monthOrders
-                    .slice()
-                    .sort((a, b) => b.createdAt - a.createdAt)
-                    .map((order) => (
-                      <div
-                        key={order.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/50"
-                      >
-                        <div className="flex items-center justify-between gap-3 text-sm">
-                          <span className="font-bold text-slate-600 dark:text-slate-300">
-                            #{order.id} -{" "}
-                            {new Date(order.createdAt).toLocaleDateString("es-AR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                            })}{" "}
-                            {new Date(order.createdAt).toLocaleTimeString("es-AR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                            {order.paymentMethod
-                              ? getPaymentMethodLabel(order.paymentMethod)
-                              : "Sin forma de pago"}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">
-                          {order.items
-                            .map(
-                              (item) =>
-                                `${formatQuantity(item.quantity, item.stockUnit)} ${item.name}`,
-                            )
-                            .join(", ")}
-                        </div>
-
-                        <div className="mt-2 text-right text-base font-bold text-blue-600 dark:text-blue-400">
-                          Total: ${order.total.toLocaleString("es-AR")}
-                        </div>
-                      </div>
-                    ))
                 )}
               </div>
             </section>

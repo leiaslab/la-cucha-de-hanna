@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order } from "./db";
+import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
 import { ReceiptPrint } from "./ReceiptPrint";
@@ -17,6 +18,21 @@ interface CartSidebarProps {
 export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isPrintQueued, setIsPrintQueued] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+
+  const queuePrint = (order: Order) => {
+    setPrintingOrder(order);
+    setIsPrintQueued(true);
+
+    const handleAfterPrint = () => {
+      setPrintingOrder(null);
+      setIsPrintQueued(false);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+  };
 
   const cartItems = useLiveQuery(async () => {
     const items = await db.cart.toArray();
@@ -76,31 +92,29 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
     }
 
     try {
-      const printableOrder = await finalizeLocalOrder({
+      const result = await finalizeLocalOrder({
         cartItems,
         total,
         paymentMethod: paymentMethod ?? "cash",
+        clientId: selectedClientId,
       });
 
       setIsPaymentDialogOpen(false);
+      setSelectedClientId(null);
       showToast("Venta procesada con exito.", "success");
 
-      if (printableOrder) {
-        setPrintingOrder(printableOrder);
-        setTimeout(() => {
-          window.print();
-          setPrintingOrder(null);
-        }, 150);
+      if (result.order) {
+        queuePrint(result.order);
       }
     } catch (error) {
       console.error("Error al finalizar el pedido:", error);
-      showToast("No se pudo procesar el pedido localmente. Verifica el stock.", "error");
+      showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
     }
   };
 
   return (
     <>
-      <aside className="hidden xl:flex xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)] xl:flex-col xl:overflow-hidden xl:rounded-[2rem] xl:border xl:border-slate-200 xl:bg-white xl:p-5 xl:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:bg-slate-900 dark:border-slate-800 print:hidden transition-colors duration-300">
+      <aside className="hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden xl:rounded-[2rem] xl:border xl:border-slate-200 xl:bg-white xl:p-5 xl:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:bg-slate-900 dark:border-slate-800 print:hidden transition-colors duration-300">
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -186,7 +200,11 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <p className="text-[11px] text-slate-500">
                           ${item.price.toLocaleString("es-AR")}
-                          {item.stockUnit === "kg" ? " / kg" : " / unidad"}
+                          {item.stockUnit === "kg"
+                            ? " / kg"
+                            : item.stockUnit === "liter"
+                              ? " / l"
+                              : " / unidad"}
                         </p>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -232,6 +250,11 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
 
         <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
           <div className="rounded-[1.5rem] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+            <ClientSelector
+              value={selectedClientId}
+              onChange={setSelectedClientId}
+              compact
+            />
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Total a cobrar</span>
               <span className="text-3xl font-black text-slate-900 dark:text-slate-50">
@@ -258,7 +281,20 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
         </div>
       </aside>
 
-      <ReceiptPrint order={printingOrder} />
+      <ReceiptPrint
+        order={printingOrder}
+        onReadyToPrint={() => {
+          if (!isPrintQueued) {
+            return;
+          }
+
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+              window.print();
+            });
+          });
+        }}
+      />
 
       <PaymentMethodDialog
         isOpen={isPaymentDialogOpen}

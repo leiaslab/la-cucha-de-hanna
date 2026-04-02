@@ -127,11 +127,13 @@ export function ProductSaleOverlay({
             <section className="flex flex-col gap-3">
               <div className="rounded-[1.6rem] border border-blue-100 bg-blue-50/50 px-4 py-3">
                 <p className="text-sm font-semibold text-blue-700">
-                  {product.saleType === "weight" ? "Venta por kilo" : "Venta por unidad"}
+                  {product.saleType === "weight"
+                    ? `Venta por ${product.stockUnit === "liter" ? "litro" : "kilo"}`
+                    : "Venta por unidad"}
                 </p>
                 <p className="mt-1 text-sm leading-snug text-slate-600">
                   {product.saleType === "weight"
-                    ? "Podes completar por kilos o por precio, y el otro valor se calcula solo."
+                    ? `Podes completar por ${product.stockUnit === "liter" ? "litros" : "kilos"} o por precio, y el otro valor se calcula solo.`
                     : "Indica la cantidad de unidades para esta venta."}
                 </p>
               </div>

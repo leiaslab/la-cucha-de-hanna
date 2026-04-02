@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Product } from "./db";
-import { downloadImageAsBlob } from "./imageUtils";
+import { db, type Product, type StockUnit } from "./db";
+import { saveProductRemote } from "./src/lib/api-client";
+
+type SaleMode = "unit" | "kg" | "liter";
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -18,16 +20,22 @@ export function ProductFormModal({
 }: ProductFormModalProps) {
   const [name, setName] = useState(productToEdit?.name ?? "");
   const [price, setPrice] = useState(productToEdit ? String(productToEdit.price) : "");
+  const [cost, setCost] = useState(
+    productToEdit ? String(productToEdit.cost ?? productToEdit.price ?? 0) : "",
+  );
   const [stock, setStock] = useState(productToEdit ? String(productToEdit.stock) : "");
+  const [lowStockAlertThreshold, setLowStockAlertThreshold] = useState(
+    productToEdit ? String(productToEdit.lowStockAlertThreshold ?? 5) : "5",
+  );
   const [saleType, setSaleType] = useState(productToEdit?.saleType ?? "fixed");
+  const [stockUnit, setStockUnit] = useState<StockUnit>(productToEdit?.stockUnit ?? "unit");
   const [category, setCategory] = useState(productToEdit?.category ?? "");
   const [selectedCategory, setSelectedCategory] = useState(productToEdit?.category ?? "");
   const [imageUrl, setImageUrl] = useState(productToEdit?.imageUrl ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
   const [error, setError] = useState<string | null>(null);
-  const stockUnit = saleType === "weight" ? "kg" : "unit";
-
+  const saleMode: SaleMode = saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
   const existingCategories = useLiveQuery(async () => {
     const products = await db.products.toArray();
     return Array.from(new Set(products.map((product) => product.category.trim()).filter(Boolean))).sort(
@@ -41,6 +49,13 @@ export function ProductFormModal({
     [previewBlob],
   );
   const previewUrl = imageUrl || previewObjectUrl;
+  const readFileAsDataUrl = async (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("No se pudo leer la imagen seleccionada."));
+      reader.readAsDataURL(file);
+    });
 
   useEffect(() => {
     return () => {
@@ -72,10 +87,14 @@ export function ProductFormModal({
     const trimmedDescription = description.trim();
     const trimmedImageUrl = imageUrl.trim();
     const parsedPrice = Number(price);
+    const parsedCost = Number(cost);
     const parsedStock = Number(stock);
+    const parsedLowStockAlertThreshold = Number(lowStockAlertThreshold);
+    const normalizedStockUnit: StockUnit =
+      saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
 
-    if (!trimmedName || !trimmedCategory || price === "" || stock === "") {
-      setError("Completa nombre, precio, stock y categoria.");
+    if (!trimmedName || !trimmedCategory || price === "" || cost === "" || stock === "" || lowStockAlertThreshold === "") {
+      setError("Completa nombre, precio, costo, stock, alerta y categoria.");
       return;
     }
 
@@ -84,39 +103,43 @@ export function ProductFormModal({
       return;
     }
 
+    if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+      setError("El costo debe ser un numero valido.");
+      return;
+    }
+
     if (!Number.isFinite(parsedStock) || parsedStock < 0) {
       setError("El stock debe ser un numero valido.");
       return;
     }
 
-    let imageBlob: Blob | undefined = imageFile || undefined;
-    if (!imageBlob && trimmedImageUrl && trimmedImageUrl !== productToEdit?.imageUrl) {
-      imageBlob = await downloadImageAsBlob(trimmedImageUrl);
-    } else if (!imageBlob && productToEdit) {
-      imageBlob = productToEdit.imageBlob;
+    if (!Number.isFinite(parsedLowStockAlertThreshold) || parsedLowStockAlertThreshold < 0) {
+      setError("La alerta de stock debe ser un numero valido.");
+      return;
     }
 
-    const productData: Product = {
+    let nextImageUrl = trimmedImageUrl || productToEdit?.imageUrl || undefined;
+    if (imageFile) {
+      nextImageUrl = await readFileAsDataUrl(imageFile);
+    }
+
+    const productData = {
       name: trimmedName,
       slug: generateSlug(trimmedName),
       price: parsedPrice,
+      cost: parsedCost,
       stock: parsedStock,
+      lowStockAlertThreshold: parsedLowStockAlertThreshold,
       category: trimmedCategory,
       saleType,
-      stockUnit,
-      imageUrl: trimmedImageUrl || undefined,
-      imageBlob,
+      stockUnit: normalizedStockUnit,
+      imageUrl: nextImageUrl,
       description: trimmedDescription || undefined,
       lastUpdated: Date.now(),
     };
 
     try {
-      if (productToEdit?.id) {
-        await db.products.update(productToEdit.id, productData);
-      } else {
-        await db.products.add(productData);
-      }
-
+      await saveProductRemote(productData, productToEdit?.id);
       onClose();
     } catch (err) {
       setError("Error al guardar el producto: " + (err as Error).message);
@@ -170,7 +193,10 @@ export function ProductFormModal({
 
               <div>
                 <label htmlFor="price" className="block text-sm font-medium text-slate-700">
-                  {saleType === "weight" ? "Precio por kilo" : "Precio fijo"} <span className="text-red-500">*</span>
+                  {saleType === "weight"
+                    ? `Precio por ${stockUnit === "liter" ? "litro" : "kilo"}`
+                    : "Precio fijo"}{" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -185,8 +211,28 @@ export function ProductFormModal({
               </div>
 
               <div>
+                <label htmlFor="cost" className="block text-sm font-medium text-slate-700">
+                  {saleType === "weight"
+                    ? `Costo por ${stockUnit === "liter" ? "litro" : "kilo"}`
+                    : "Costo por unidad"}{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="cost"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  required
+                  step="0.01"
+                  min="0"
+                />
+              </div>
+
+              <div>
                 <label htmlFor="stock" className="block text-sm font-medium text-slate-700">
-                  Stock ({stockUnit === "kg" ? "kg" : "unidades"}) <span className="text-red-500">*</span>
+                  Stock ({stockUnit === "kg" ? "kg" : stockUnit === "liter" ? "litros" : "unidades"}){" "}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -196,8 +242,27 @@ export function ProductFormModal({
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   required
                   min="0"
-                  step={stockUnit === "kg" ? "0.25" : "1"}
+                  step={stockUnit === "unit" ? "1" : "0.25"}
                 />
+              </div>
+
+              <div>
+                <label htmlFor="lowStockAlertThreshold" className="block text-sm font-medium text-slate-700">
+                  Alerta de stock bajo <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="lowStockAlertThreshold"
+                  value={lowStockAlertThreshold}
+                  onChange={(e) => setLowStockAlertThreshold(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  required
+                  min="0"
+                  step={stockUnit === "unit" ? "1" : "0.25"}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Cuando llegue a este numero o menos, se marcara en rojo y tirara alerta.
+                </p>
               </div>
 
               <div className="sm:col-span-2">
@@ -206,17 +271,28 @@ export function ProductFormModal({
                 </label>
                 <select
                   id="saleType"
-                  value={saleType}
-                  onChange={(e) => setSaleType(e.target.value as Product["saleType"])}
+                  value={saleMode}
+                  onChange={(e) => {
+                    const nextMode = e.target.value as SaleMode;
+                    if (nextMode === "unit") {
+                      setSaleType("fixed");
+                      setStockUnit("unit");
+                      return;
+                    }
+
+                    setSaleType("weight");
+                    setStockUnit(nextMode as StockUnit);
+                  }}
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="fixed">Precio fijo</option>
-                  <option value="weight">Venta por kilo</option>
+                  <option value="unit">Por unidad</option>
+                  <option value="kg">Por kilo</option>
+                  <option value="liter">Por litro</option>
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  {saleType === "weight"
-                    ? "El producto se vende por kg y el stock tambien se descuenta en kg."
-                    : "Ideal para accesorios o productos con precio fijo por unidad."}
+                  {saleMode === "unit"
+                    ? "Ideal para accesorios o productos con precio fijo por unidad."
+                    : `El producto se vende por ${saleMode === "liter" ? "litro" : "kilo"} y el stock tambien se descuenta en esa unidad.`}
                 </p>
               </div>
 

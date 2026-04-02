@@ -9,8 +9,13 @@ import { db, type Product } from "./db";
 import { LowStockReportModal } from "./LowStockReportModal";
 import { WeeklySalesChartModal } from "./WeeklySalesChartModal";
 import { DailySalesModal } from "./DailySalesModal";
+import { TodaySalesModal } from "./TodaySalesModal";
+import { StockCostModal } from "./StockCostModal";
+import { ShiftModal } from "./ShiftModal";
 import { ProductFormModal } from "./ProductFormModal";
 import { ProductList } from "./ProductList";
+import { useAuth } from "./src/components/AuthGate";
+import { importProductsRemote, syncRemoteSnapshot } from "./src/lib/api-client";
 import { ToastContainer } from "./Toast";
 
 type ThemeMode = "light" | "dark";
@@ -26,13 +31,17 @@ function subscribeToOnlineStatus(callback: () => void) {
 }
 
 export default function Home() {
+  const { signOut } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLowStockOpen, setIsLowStockOpen] = useState(false);
   const [isWeeklySalesOpen, setIsWeeklySalesOpen] = useState(false);
   const [isDailySalesOpen, setIsDailySalesOpen] = useState(false);
+  const [isTodaySalesOpen, setIsTodaySalesOpen] = useState(false);
+  const [isStockCostOpen, setIsStockCostOpen] = useState(false);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -53,26 +62,11 @@ export default function Home() {
       return;
     }
 
-    const pendingOrders = await db.orders.where("status").equals("pending").toArray();
-    if (pendingOrders.length === 0) {
-      return;
-    }
-
     isSyncingRef.current = true;
     setIsSyncing(true);
 
     try {
-      for (const order of pendingOrders) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-
-          if (order.id) {
-            await db.orders.update(order.id, { status: "synced" });
-          }
-        } catch (error) {
-          console.error("Error al sincronizar pedido:", error);
-        }
-      }
+      await syncRemoteSnapshot();
     } finally {
       isSyncingRef.current = false;
       setIsSyncing(false);
@@ -135,6 +129,8 @@ export default function Home() {
   }, [isQuickMenuOpen]);
 
   useEffect(() => {
+    setNow(new Date());
+
     const intervalId = window.setInterval(() => {
       setNow(new Date());
     }, 1000);
@@ -160,16 +156,20 @@ export default function Home() {
   };
 
   const isDarkMode = theme === "dark";
-  const currentTime = now.toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const currentDate = now.toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  const currentTime = now
+    ? now.toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "--:--";
+  const currentDate = now
+    ? now.toLocaleDateString("es-AR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "--/--/----";
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -193,15 +193,14 @@ export default function Home() {
             `Se importaran ${products.length} productos. Deseas borrar el catalogo actual antes de restaurar?`,
           )
         ) {
-          await db.transaction("rw", db.products, async () => {
-            await db.products.clear();
-            const productsToImport = products.map((product) => {
-              const rest = { ...product };
-              delete rest.id;
-              return rest;
-            });
-            await db.products.bulkAdd(productsToImport);
+          const productsToImport = products.map((product) => {
+            const rest = { ...product };
+            delete rest.id;
+            rest.cost = rest.cost ?? rest.price ?? 0;
+            rest.lowStockAlertThreshold = rest.lowStockAlertThreshold ?? 5;
+            return rest;
           });
+          await importProductsRemote(productsToImport);
           alert("Catalogo restaurado con exito.");
         }
       } catch {
@@ -213,7 +212,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-white px-4 py-10 transition-colors duration-300 print:hidden sm:px-6 lg:px-8 dark:bg-slate-950">
+    <main className="min-h-screen bg-white px-4 py-10 transition-colors duration-300 print:hidden sm:px-6 lg:px-8 xl:h-screen xl:overflow-hidden dark:bg-slate-950">
       {isOffline && (
         <div className="fixed left-0 right-0 top-0 z-[60] flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-sm font-bold text-white shadow-md animate-pulse print:hidden">
           <span className="text-lg">!</span>
@@ -238,9 +237,9 @@ export default function Home() {
         onChange={handleImport}
       />
 
-      <div className="mx-auto max-w-[1600px] print:hidden">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-colors dark:border-slate-800 dark:bg-slate-900/40">
+      <div className="mx-auto max-w-[1600px] print:hidden xl:h-full">
+        <div className="grid gap-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_380px]">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-colors xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden dark:border-slate-800 dark:bg-slate-900/40">
             <ProductList
               onEditProduct={handleEditProduct}
               leadingContent={
@@ -290,6 +289,12 @@ export default function Home() {
                       <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_rgba(15,23,42,0.14)] dark:border-slate-600 dark:bg-slate-900">
                         <div className="grid gap-1">
                           <button
+                            onClick={() => handleMenuAction(() => setIsShiftModalOpen(true))}
+                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                          >
+                            Turno
+                          </button>
+                          <button
                             onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
                             className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                           >
@@ -302,10 +307,16 @@ export default function Home() {
                             Ventas 7 Dias
                           </button>
                           <button
-                            onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
+                            onClick={() => handleMenuAction(() => setIsTodaySalesOpen(true))}
                             className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                           >
                             Ventas hoy
+                          </button>
+                          <button
+                            onClick={() => handleMenuAction(() => setIsStockCostOpen(true))}
+                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                          >
+                            Coste de stock
                           </button>
                           <button
                             onClick={() => handleMenuAction(() => setIsLowStockOpen(true))}
@@ -318,6 +329,12 @@ export default function Home() {
                             className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800 xl:hidden"
                           >
                             Ver carrito
+                          </button>
+                          <button
+                            onClick={() => handleMenuAction(() => void signOut())}
+                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
+                          >
+                            Cerrar sesion
                           </button>
                           <button
                             onClick={() => handleMenuAction(handleNewProduct)}
@@ -359,6 +376,20 @@ export default function Home() {
         />
       )}
 
+      {isStockCostOpen && (
+        <StockCostModal
+          isOpen={isStockCostOpen}
+          onClose={() => setIsStockCostOpen(false)}
+        />
+      )}
+
+      {isShiftModalOpen && (
+        <ShiftModal
+          isOpen={isShiftModalOpen}
+          onClose={() => setIsShiftModalOpen(false)}
+        />
+      )}
+
       {isWeeklySalesOpen && (
         <WeeklySalesChartModal
           isOpen={isWeeklySalesOpen}
@@ -370,6 +401,13 @@ export default function Home() {
         <DailySalesModal
           isOpen={isDailySalesOpen}
           onClose={() => setIsDailySalesOpen(false)}
+        />
+      )}
+
+      {isTodaySalesOpen && (
+        <TodaySalesModal
+          isOpen={isTodaySalesOpen}
+          onClose={() => setIsTodaySalesOpen(false)}
         />
       )}
     </main>

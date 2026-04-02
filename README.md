@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PepShop POS
 
-## Getting Started
+POS web para stock, ventas y caja con Next.js, Supabase y Google Drive.
 
-First, run the development server:
+## Stack
+
+- Frontend: Next.js 16
+- Persistencia principal: Supabase PostgreSQL
+- Cache local y carrito: Dexie
+- PDFs: `pdf-lib`
+- Almacenamiento contable: Google Drive API
+
+## Variables de entorno
+
+Usa `.env.example` como base:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Variables requeridas:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_DRIVE_CLIENT_EMAIL`
+- `GOOGLE_DRIVE_PRIVATE_KEY`
+- `GOOGLE_DRIVE_PARENT_FOLDER_ID` opcional
+- `APP_LOGIN_USERNAME`
+- `APP_LOGIN_PASSWORD`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Para compatibilidad del frontend tambien se esperan:
 
-## Learn More
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-To learn more about Next.js, take a look at the following resources:
+## Supabase
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Crea un proyecto en Supabase.
+2. Ejecuta el SQL de [supabase/schema.sql](./supabase/schema.sql).
+3. Copia `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+El flujo principal se guarda asi:
 
-## Deploy on Vercel
+1. Registrar venta.
+2. Descontar stock.
+3. Insertar `ventas` y `detalle_ventas`.
+4. Registrar `movimientos`.
+5. Generar PDF.
+6. Subir PDF a Google Drive.
+7. Guardar link en `pdfs`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Google Drive
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Crea una Service Account en Google Cloud.
+2. Habilita Google Drive API.
+3. Comparte con la service account la carpeta padre si usas `GOOGLE_DRIVE_PARENT_FOLDER_ID`.
+4. La app crea automaticamente la carpeta `PepShop POS` si no existe.
+
+## Desarrollo
+
+```bash
+npm install
+npm run dev
+```
+
+## Endpoints principales
+
+- `GET /api/auth/session`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/bootstrap`
+- `POST /api/products`
+- `PATCH /api/products/:id`
+- `DELETE /api/products/:id`
+- `POST /api/sales/checkout`
+- `POST /api/shifts/open`
+- `POST /api/shifts/:id/close`
+- `POST /api/pdfs/sales/:id`
+- `POST /api/pdfs/arqueos/:id`
+- `GET|POST /api/clients`
+- `PATCH|DELETE /api/clients/:id`
+
+## Notas
+
+- El carrito sigue siendo local por dispositivo para no degradar la UX.
+- Catalogo, ventas, stock y turnos se hidratan desde Supabase al abrir la app.
+- Los PDFs se descargan localmente y tambien quedan accesibles desde Google Drive.
