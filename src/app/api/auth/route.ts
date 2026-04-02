@@ -1,9 +1,16 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { APP_SESSION_COOKIE, getAppLoginCredentials } from "../../../../lib/auth";
+import { APP_SESSION_COOKIE, getAppLoginCredentials } from "../../../lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET() {
+  const cookieStore = await cookies();
+  const authenticated = cookieStore.get(APP_SESSION_COOKIE)?.value === "authenticated";
+
+  return NextResponse.json({ data: { authenticated } });
+}
 
 export async function POST(request: Request) {
   try {
@@ -11,8 +18,8 @@ export async function POST(request: Request) {
     const credentials = getAppLoginCredentials();
 
     if (
-      body.username?.trim() !== credentials.username.trim() ||
-      body.password !== credentials.password
+      body.username?.trim() !== credentials.username ||
+      body.password?.trim() !== credentials.password
     ) {
       return NextResponse.json(
         { error: "Usuario o clave incorrectos." },
@@ -38,4 +45,11 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+}
+
+export async function DELETE() {
+  const cookieStore = await cookies();
+  cookieStore.delete(APP_SESSION_COOKIE);
+
+  return NextResponse.json({ data: { success: true } });
 }

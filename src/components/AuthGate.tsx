@@ -42,7 +42,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     const checkSession = async () => {
       try {
         const data = await readJson<{ authenticated: boolean }>(
-          await fetch("/api/auth/session", { cache: "no-store" }),
+          await fetch("/api/auth", { cache: "no-store" }),
         );
         setIsAuthenticated(Boolean(data.authenticated));
       } catch {
@@ -56,7 +56,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth", { method: "DELETE" });
     setIsAuthenticated(false);
     setPassword("");
     setError(null);
