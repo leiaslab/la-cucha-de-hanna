@@ -199,7 +199,7 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
           </div>
         ) : (
           <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/40">
+            <section className="min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-5 pr-3 dark:border-slate-700 dark:bg-slate-800/40">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-500">
                   Turno activo
