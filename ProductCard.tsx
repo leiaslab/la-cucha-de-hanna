@@ -62,7 +62,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           {product.stock <= 0 ? "Sin stock" : stockBadgeLabel}
         </div>
 
-        <div className="relative flex min-h-[6rem] flex-[0_0_42%] items-center justify-center overflow-hidden rounded-[1.15rem] bg-white shadow-inner dark:bg-slate-800/30">
+        <div className="relative flex min-h-[4rem] flex-[0_0_32%] items-center justify-center overflow-hidden rounded-[1.15rem] bg-white shadow-inner dark:bg-slate-800/30">
           <div className="h-full w-full p-2.5 transition-transform duration-500 group-hover:scale-110">
             {displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
