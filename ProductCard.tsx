@@ -62,8 +62,8 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           {product.stock <= 0 ? "Sin stock" : stockBadgeLabel}
         </div>
 
-        <div className="relative flex h-[4.8rem] items-center justify-center overflow-hidden rounded-[1.05rem] bg-white shadow-inner dark:bg-slate-800/30">
-          <div className="h-full w-full p-2 transition-transform duration-500 group-hover:scale-110">
+        <div className="relative flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1.05rem] bg-white shadow-inner dark:bg-slate-800/30">
+          <div className="flex h-[9.45rem] w-[9.45rem] items-center justify-center p-2 transition-transform duration-500 group-hover:scale-110">
             {displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -80,13 +80,13 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           </div>
         </div>
 
-        <div className="flex min-h-[4.5rem] flex-col justify-between rounded-[1rem] border border-white/40 bg-white/60 px-2 pb-1.5 pt-1.5 text-center dark:border-slate-700 dark:bg-slate-800/45">
-          <div className="flex min-h-[2.2rem] items-center justify-center">
+        <div className="flex min-h-[4.9rem] flex-col justify-between rounded-[1rem] border border-white/40 bg-white/60 px-2 pb-1.5 pt-1.5 text-center dark:border-slate-700 dark:bg-slate-800/45">
+          <div className="flex min-h-[2.5rem] items-center justify-center">
             <h3
-              className="line-clamp-2 font-bold text-slate-800 dark:text-slate-100"
+              className="line-clamp-2 pb-[0.15rem] font-bold text-slate-800 dark:text-slate-100"
               style={{
                 fontSize: nameFontSize,
-                lineHeight: "1.15",
+                lineHeight: "1.2",
               }}
             >
               {product.name}
