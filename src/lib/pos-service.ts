@@ -502,7 +502,15 @@ export async function createCheckout(input: CheckoutPayload): Promise<CheckoutRe
   );
   const updatedProducts = (productRows as ProductRow[]).map(mapProductRow);
   const shift = order.shiftId ? await getShiftById(order.shiftId) : null;
-  const pdf = input.generatePdf ? await generateSalePdf(orderId) : null;
+  let pdf: PdfGenerationResult | null = null;
+
+  if (input.generatePdf) {
+    try {
+      pdf = await generateSalePdf(orderId);
+    } catch (error) {
+      console.error("No se pudo generar o subir el PDF de la venta:", error);
+    }
+  }
 
   return {
     order,
@@ -539,7 +547,15 @@ export async function closeShift(shiftId: number, input: ShiftCloseInput) {
 
   const closedShiftId = Number(data ?? shiftId);
   const shift = await getShiftById(closedShiftId);
-  const pdf = input.generatePdf ? await generateShiftPdf(closedShiftId) : null;
+  let pdf: PdfGenerationResult | null = null;
+
+  if (input.generatePdf) {
+    try {
+      pdf = await generateShiftPdf(closedShiftId);
+    } catch (error) {
+      console.error("No se pudo generar o subir el PDF del arqueo:", error);
+    }
+  }
 
   return {
     shift,
