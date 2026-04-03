@@ -23,8 +23,8 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
   const priceLabel = formatPriceLabel(product);
   const stockBadgeLabel = formatQuantity(product.stock, product.stockUnit);
   const isLowStock = product.stock > 0 && product.stock <= (product.lowStockAlertThreshold ?? 5);
-  const nameFontSize = getAdaptiveFontSize(product.name, 13, 9.5, 0.1);
-  const priceFontSize = getAdaptiveFontSize(priceLabel, 15, 11, 0.12);
+  const nameFontSize = getAdaptiveFontSize(product.name, 11.5, 8.5, 0.12);
+  const priceFontSize = getAdaptiveFontSize(priceLabel, 13.5, 10, 0.1);
 
   useEffect(() => {
     return () => {
@@ -49,7 +49,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
       role="button"
       tabIndex={0}
     >
-      <div className="flex flex-col gap-2 p-2">
+      <div className="flex flex-col gap-1.5 p-1.5">
         <div
           className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
             product.stock <= 0
@@ -62,8 +62,8 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           {product.stock <= 0 ? "Sin stock" : stockBadgeLabel}
         </div>
 
-        <div className="relative flex h-[5.5rem] items-center justify-center overflow-hidden rounded-[1.15rem] bg-white shadow-inner dark:bg-slate-800/30">
-          <div className="h-full w-full p-2.5 transition-transform duration-500 group-hover:scale-110">
+        <div className="relative flex h-[4.8rem] items-center justify-center overflow-hidden rounded-[1.05rem] bg-white shadow-inner dark:bg-slate-800/30">
+          <div className="h-full w-full p-2 transition-transform duration-500 group-hover:scale-110">
             {displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -80,21 +80,21 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           </div>
         </div>
 
-        <div className="flex min-h-[5.1rem] flex-col justify-between rounded-[1.05rem] border border-white/40 bg-white/60 px-2 pb-2 pt-2 text-center dark:border-slate-700 dark:bg-slate-800/45">
-          <div className="flex min-h-[2.5rem] items-center justify-center leading-none">
+        <div className="flex min-h-[4.3rem] flex-col justify-between rounded-[1rem] border border-white/40 bg-white/60 px-2 pb-1.5 pt-1.5 text-center dark:border-slate-700 dark:bg-slate-800/45">
+          <div className="flex min-h-[1.9rem] items-center justify-center leading-none">
             <h3
-              className="line-clamp-3 font-bold text-slate-800 dark:text-slate-100"
+              className="line-clamp-2 font-bold text-slate-800 dark:text-slate-100"
               style={{
                 fontSize: nameFontSize,
-                lineHeight: "1.15",
+                lineHeight: "1.05",
               }}
             >
               {product.name}
             </h3>
           </div>
           <p
-            className="mt-1 shrink-0 font-black text-blue-600 dark:text-blue-400"
-            style={{ fontSize: priceFontSize, lineHeight: "1.15" }}
+            className="mt-0.5 shrink-0 font-black text-blue-600 dark:text-blue-400"
+            style={{ fontSize: priceFontSize, lineHeight: "1.05" }}
           >
             {priceLabel}
           </p>
