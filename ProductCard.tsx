@@ -36,7 +36,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
 
   return (
     <div
-      className={`group relative mx-auto h-[18.7rem] w-full max-w-[188px] cursor-pointer overflow-hidden rounded-[1.5rem] border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
+      className={`group relative mx-auto h-[15.6rem] w-full max-w-[188px] cursor-pointer overflow-hidden rounded-[1.5rem] border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
         isSelling ? "shadow-md ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900" : ""
       }`}
       onClick={onToggleSale}
@@ -49,7 +49,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
       role="button"
       tabIndex={0}
     >
-      <div className="flex h-full flex-col p-2.5">
+      <div className="flex h-full flex-col p-2">
         <div
           className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
             product.stock <= 0
