@@ -212,7 +212,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-white px-4 pb-[1.5rem] pt-[1.5rem] transition-colors duration-300 print:hidden sm:px-6 lg:px-8 xl:h-screen xl:overflow-hidden dark:bg-slate-950">
+    <main className="min-h-screen bg-white px-4 pb-[0.5cm] pt-[0.5cm] transition-colors duration-300 print:hidden sm:px-6 lg:px-8 xl:h-screen xl:overflow-hidden dark:bg-slate-950">
       {isOffline && (
         <div className="fixed left-0 right-0 top-0 z-[60] flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-sm font-bold text-white shadow-md animate-pulse print:hidden">
           <span className="text-lg">!</span>
