@@ -36,7 +36,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
 
   return (
     <div
-      className={`group relative mx-auto h-[15.6rem] w-full max-w-[188px] cursor-pointer overflow-hidden rounded-[1.5rem] border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
+      className={`group relative mx-auto w-full max-w-[188px] cursor-pointer overflow-hidden rounded-[1.5rem] border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
         isSelling ? "shadow-md ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900" : ""
       }`}
       onClick={onToggleSale}
@@ -49,7 +49,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
       role="button"
       tabIndex={0}
     >
-      <div className="flex h-full flex-col p-2">
+      <div className="flex flex-col gap-2 p-2">
         <div
           className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
             product.stock <= 0
@@ -62,7 +62,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           {product.stock <= 0 ? "Sin stock" : stockBadgeLabel}
         </div>
 
-        <div className="relative flex min-h-[4rem] flex-[0_0_32%] items-center justify-center overflow-hidden rounded-[1.15rem] bg-white shadow-inner dark:bg-slate-800/30">
+        <div className="relative flex h-[5.5rem] items-center justify-center overflow-hidden rounded-[1.15rem] bg-white shadow-inner dark:bg-slate-800/30">
           <div className="h-full w-full p-2.5 transition-transform duration-500 group-hover:scale-110">
             {displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -80,8 +80,8 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           </div>
         </div>
 
-        <div className="mt-2 flex h-[6.4rem] flex-none flex-col justify-between rounded-[1.05rem] border border-white/40 bg-white/60 px-2 pb-2 pt-2 text-center dark:border-slate-700 dark:bg-slate-800/45">
-          <div className="flex min-h-[2.8rem] items-center justify-center leading-none">
+        <div className="flex min-h-[5.1rem] flex-col justify-between rounded-[1.05rem] border border-white/40 bg-white/60 px-2 pb-2 pt-2 text-center dark:border-slate-700 dark:bg-slate-800/45">
+          <div className="flex min-h-[2.5rem] items-center justify-center leading-none">
             <h3
               className="line-clamp-3 font-bold text-slate-800 dark:text-slate-100"
               style={{
@@ -93,7 +93,7 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
             </h3>
           </div>
           <p
-            className="mt-1 min-h-[1.8rem] shrink-0 font-black text-blue-600 dark:text-blue-400"
+            className="mt-1 shrink-0 font-black text-blue-600 dark:text-blue-400"
             style={{ fontSize: priceFontSize, lineHeight: "1.15" }}
           >
             {priceLabel}
