@@ -89,8 +89,8 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
   const isBlockingOpen = requireOpenShift && !activeShift;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[84vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 backdrop-blur-sm sm:py-6">
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100vh-3rem)]">
         <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -113,7 +113,8 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
           )}
         </div>
 
-        {!activeShift ? (
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {!activeShift ? (
           <div className="mx-auto w-full max-w-xl space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/40">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -168,9 +169,9 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
               </button>
             </div>
           </div>
-        ) : (
+          ) : (
           <div className="min-h-0 flex-1">
-            <section className="h-full min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-5 pr-3 dark:border-slate-700 dark:bg-slate-800/40">
+            <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/40">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-500">
                   Turno activo
@@ -277,6 +278,7 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
             </section>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

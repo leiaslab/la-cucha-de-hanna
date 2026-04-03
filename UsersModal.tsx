@@ -130,8 +130,8 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[84vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 backdrop-blur-sm sm:py-6">
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100vh-3rem)]">
         <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -225,7 +225,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/40">
+          <section className="min-h-0 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/40">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {editingUser ? "Editar usuario" : "Nuevo usuario"}
             </h3>
