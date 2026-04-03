@@ -80,13 +80,13 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           </div>
         </div>
 
-        <div className="flex min-h-[4.3rem] flex-col justify-between rounded-[1rem] border border-white/40 bg-white/60 px-2 pb-1.5 pt-1.5 text-center dark:border-slate-700 dark:bg-slate-800/45">
-          <div className="flex min-h-[1.9rem] items-center justify-center leading-none">
+        <div className="flex min-h-[4.5rem] flex-col justify-between rounded-[1rem] border border-white/40 bg-white/60 px-2 pb-1.5 pt-1.5 text-center dark:border-slate-700 dark:bg-slate-800/45">
+          <div className="flex min-h-[2.2rem] items-center justify-center">
             <h3
               className="line-clamp-2 font-bold text-slate-800 dark:text-slate-100"
               style={{
                 fontSize: nameFontSize,
-                lineHeight: "1.05",
+                lineHeight: "1.15",
               }}
             >
               {product.name}
