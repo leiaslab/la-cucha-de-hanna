@@ -6,7 +6,6 @@ import { db, type PaymentMethod } from "./db";
 import { getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { closeShiftRemote, openShiftRemote } from "./src/lib/api-client";
 import { downloadPdfResult } from "./src/lib/pdf-download";
-import { formatQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
 
 interface ShiftModalProps {
@@ -14,12 +13,6 @@ interface ShiftModalProps {
   onClose: () => void;
   requireOpenShift?: boolean;
 }
-
-type ShiftProductSummary = {
-  name: string;
-  quantity: number;
-  stockUnit: "unit" | "kg" | "liter";
-};
 
 export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftModalProps) {
   const [openingCash, setOpeningCash] = useState("");
@@ -51,28 +44,6 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
     () => (shiftOrders ?? []).reduce((acc, order) => acc + order.total, 0),
     [shiftOrders],
   );
-
-  const productSummary = useMemo(() => {
-    const stats = new Map<string, ShiftProductSummary>();
-
-    (shiftOrders ?? []).forEach((order) => {
-      order.items.forEach((item) => {
-        const current = stats.get(item.name);
-        if (current) {
-          current.quantity += item.quantity;
-          return;
-        }
-
-        stats.set(item.name, {
-          name: item.name,
-          quantity: item.quantity,
-          stockUnit: item.stockUnit,
-        });
-      });
-    });
-
-    return Array.from(stats.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [shiftOrders]);
 
   const handleOpenShift = async () => {
     const parsedOpeningCash = Number(openingCash);
@@ -198,8 +169,8 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
             </div>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <section className="min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-5 pr-3 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="min-h-0 flex-1">
+            <section className="h-full min-h-0 space-y-4 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-5 pr-3 dark:border-slate-700 dark:bg-slate-800/40">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-500">
                   Turno activo
@@ -302,35 +273,6 @@ export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftM
                 >
                   Cerrar turno
                 </button>
-              </div>
-            </section>
-
-            <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/40">
-              <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
-                Productos vendidos en el turno
-              </h3>
-              <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-                {productSummary.length === 0 ? (
-                  <p className="py-10 text-center text-slate-500 dark:text-slate-400">
-                    Todavia no hay ventas en este turno.
-                  </p>
-                ) : (
-                  productSummary.map((product) => (
-                    <div
-                      key={product.name}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-bold text-slate-800 dark:text-slate-100">
-                          {product.name}
-                        </p>
-                        <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                          {formatQuantity(product.quantity, product.stockUnit)}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
               </div>
             </section>
           </div>
