@@ -17,6 +17,7 @@ type AppUserRow = {
 };
 
 const USERS_TABLE = "app_users";
+const PUBLIC_USER_COLUMNS = "id,full_name,username,role,is_active,created_at,updated_at";
 
 export class MissingAppUsersTableError extends Error {
   constructor() {
@@ -82,7 +83,7 @@ export async function listAppUsers() {
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from(USERS_TABLE)
-    .select("id,full_name,username,role,is_active,created_at,updated_at")
+    .select(PUBLIC_USER_COLUMNS)
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -108,7 +109,7 @@ export async function createAppUser(input: AppUserInput) {
   const { data, error } = await supabase
     .from(USERS_TABLE)
     .insert(payload)
-    .select("id,full_name,username,role,is_active,created_at,updated_at,password_hash")
+    .select(PUBLIC_USER_COLUMNS)
     .single<AppUserRow>();
 
   if (error) {
@@ -150,7 +151,7 @@ export async function updateAppUser(userId: number, input: AppUserUpdateInput) {
     .from(USERS_TABLE)
     .update(payload)
     .eq("id", userId)
-    .select("id,full_name,username,role,is_active,created_at,updated_at,password_hash")
+    .select(PUBLIC_USER_COLUMNS)
     .single<AppUserRow>();
 
   if (error) {

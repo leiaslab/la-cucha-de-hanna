@@ -105,7 +105,12 @@ export async function clearCurrentSessionUser() {
 
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 64).toString("hex");
+  const hash = scryptSync(password, salt, 32, {
+    N: 4096,
+    r: 8,
+    p: 1,
+    maxmem: 32 * 1024 * 1024,
+  }).toString("hex");
   return `scrypt:${salt}:${hash}`;
 }
 
@@ -117,7 +122,12 @@ export function verifyPassword(password: string, storedHash: string) {
   }
 
   const expectedBuffer = Buffer.from(hash, "hex");
-  const providedBuffer = scryptSync(password, salt, expectedBuffer.length);
+  const providedBuffer = scryptSync(password, salt, expectedBuffer.length, {
+    N: 4096,
+    r: 8,
+    p: 1,
+    maxmem: 32 * 1024 * 1024,
+  });
 
   return timingSafeEqual(providedBuffer, expectedBuffer);
 }

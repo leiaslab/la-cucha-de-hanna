@@ -79,25 +79,23 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
 
     try {
       if (editingUser) {
-        const updated = await updateAppUserRemote(editingUser.id, {
+        await updateAppUserRemote(editingUser.id, {
           fullName: form.fullName,
           username: form.username,
           password: form.password.trim() || undefined,
           role: form.role,
           isActive,
         });
-
-        setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
+        await loadUsers();
         showToast("Usuario actualizado con exito.", "success");
       } else {
-        const created = await createAppUserRemote({
+        await createAppUserRemote({
           fullName: form.fullName,
           username: form.username,
           password: form.password,
           role: form.role,
         });
-
-        setUsers((current) => [...current, created]);
+        await loadUsers();
         showToast("Usuario creado con exito.", "success");
       }
 
