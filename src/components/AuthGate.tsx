@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type AuthContextValue = {
@@ -112,11 +113,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#dbeafe_0%,_#eff6ff_35%,_#e2e8f0_100%)] px-4 py-10">
         <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
           <div className="mb-6 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-600">
-              Acceso protegido
-            </p>
-            <h1 className="mt-3 text-3xl font-black text-slate-900">PepShop POS</h1>
-            <p className="mt-2 text-sm text-slate-500">
+            <Image
+              src="/logo.png"
+              alt="Logo La Cucha de Hanna"
+              width={132}
+              height={132}
+              className="mx-auto h-28 w-28 object-contain"
+              priority
+            />
+            <p className="mt-3 text-sm text-slate-500">
               Ingresa con tu usuario y clave para abrir la caja.
             </p>
           </div>
