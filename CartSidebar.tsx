@@ -255,7 +255,7 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
               onChange={setSelectedClientId}
               compact
             />
-            <div className="flex items-center justify-between">
+            <div className="mt-5 flex items-end justify-between gap-3">
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Total a cobrar</span>
               <span className="text-3xl font-black text-slate-900 dark:text-slate-50">
                 ${total.toLocaleString("es-AR")}
@@ -272,7 +272,7 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
               <button
                 onClick={handleClearCart}
                 disabled={!cartItems || cartItems.length === 0}
-                className="w-full rounded-2xl border border-slate-200 dark:border-slate-600 px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-2xl border border-slate-200 dark:border-slate-600 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Vaciar carrito
               </button>
