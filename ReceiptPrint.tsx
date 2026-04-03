@@ -13,16 +13,55 @@ interface ReceiptPrintProps {
 export function ReceiptPrint({ order, onReadyToPrint }: ReceiptPrintProps) {
   const [readyOrderId, setReadyOrderId] = useState<number | null>(null);
   const didNotifyRef = useRef(false);
-  const isLogoReady = readyOrderId === (order?.id ?? null);
+  const currentOrderId = order?.id ?? null;
+  const isReadyToPrint = currentOrderId !== null && readyOrderId === currentOrderId;
 
   useEffect(() => {
-    if (!order || !isLogoReady || !onReadyToPrint || didNotifyRef.current) {
+    didNotifyRef.current = false;
+
+    if (currentOrderId === null || typeof window === "undefined") {
+      return;
+    }
+
+    let isCancelled = false;
+    const finishPreparation = () => {
+      if (!isCancelled) {
+        setReadyOrderId(currentOrderId);
+      }
+    };
+
+    // Preload the logo, but don't block printing forever if the browser delays it.
+    const timeoutId = window.setTimeout(finishPreparation, 1200);
+    const logo = new window.Image();
+    logo.onload = () => {
+      window.clearTimeout(timeoutId);
+      finishPreparation();
+    };
+    logo.onerror = () => {
+      window.clearTimeout(timeoutId);
+      finishPreparation();
+    };
+    logo.src = "/logo.png";
+
+    if (logo.complete) {
+      window.clearTimeout(timeoutId);
+      finishPreparation();
+    }
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentOrderId]);
+
+  useEffect(() => {
+    if (!order || !isReadyToPrint || !onReadyToPrint || didNotifyRef.current) {
       return;
     }
 
     didNotifyRef.current = true;
     onReadyToPrint();
-  }, [isLogoReady, onReadyToPrint, order]);
+  }, [isReadyToPrint, onReadyToPrint, order]);
 
   if (typeof document === "undefined" || !order) {
     return null;
@@ -38,8 +77,6 @@ export function ReceiptPrint({ order, onReadyToPrint }: ReceiptPrintProps) {
               src="/logo.png"
               alt="Logo La cucha de Hanna"
               className="h-full w-full object-contain"
-              onLoad={() => setReadyOrderId(order.id ?? null)}
-              onError={() => setReadyOrderId(order.id ?? null)}
             />
           </div>
           <h1 className="text-xl font-bold uppercase tracking-tight">La cucha de Hanna</h1>
