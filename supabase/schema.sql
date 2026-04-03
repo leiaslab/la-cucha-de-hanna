@@ -86,6 +86,17 @@ create table if not exists public.pdfs (
   created_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.app_users (
+  id bigserial primary key,
+  full_name text not null,
+  username text not null unique,
+  password_hash text not null,
+  role text not null check (role in ('admin', 'cajero')),
+  is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
@@ -99,6 +110,12 @@ $$;
 drop trigger if exists clientes_touch_updated_at on public.clientes;
 create trigger clientes_touch_updated_at
 before update on public.clientes
+for each row
+execute function public.touch_updated_at();
+
+drop trigger if exists app_users_touch_updated_at on public.app_users;
+create trigger app_users_touch_updated_at
+before update on public.app_users
 for each row
 execute function public.touch_updated_at();
 

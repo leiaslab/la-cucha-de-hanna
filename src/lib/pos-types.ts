@@ -2,6 +2,7 @@ export type SaleType = "fixed" | "weight";
 export type StockUnit = "unit" | "kg" | "liter";
 export type PaymentMethod = "cash" | "mercado_pago" | "transfer";
 export type ShiftStatus = "open" | "closed";
+export type AppRole = "admin" | "cajero";
 
 export interface Product {
   id?: number;
@@ -58,6 +59,39 @@ export interface Shift {
   mercadoPagoSales?: number;
   transferSales?: number;
   expectedCash?: number;
+}
+
+export interface SessionUser {
+  id: number | null;
+  username: string;
+  fullName: string;
+  role: AppRole;
+  source: "database" | "fallback";
+}
+
+export interface AppUser {
+  id: number;
+  fullName: string;
+  username: string;
+  role: AppRole;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AppUserInput {
+  fullName: string;
+  username: string;
+  password: string;
+  role: AppRole;
+}
+
+export interface AppUserUpdateInput {
+  fullName?: string;
+  username?: string;
+  password?: string;
+  role?: AppRole;
+  isActive?: boolean;
 }
 
 export interface ClientRecord {

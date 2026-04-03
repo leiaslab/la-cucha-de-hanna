@@ -2,6 +2,9 @@
 
 import { db } from "../../db";
 import type {
+  AppUser,
+  AppUserInput,
+  AppUserUpdateInput,
   CheckoutPayload,
   CheckoutResult,
   ClientRecord,
@@ -170,5 +173,25 @@ export async function regenerateSalePdf(orderId: number) {
 export async function regenerateShiftPdf(shiftId: number) {
   return apiFetch<PdfGenerationResult>(`/api/pdfs/arqueos/${shiftId}`, {
     method: "POST",
+  });
+}
+
+export async function listAppUsersRemote() {
+  return apiFetch<AppUser[]>("/api/users", {
+    cache: "no-store",
+  });
+}
+
+export async function createAppUserRemote(payload: AppUserInput) {
+  return apiFetch<AppUser>("/api/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAppUserRemote(userId: number, payload: AppUserUpdateInput) {
+  return apiFetch<AppUser>(`/api/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }

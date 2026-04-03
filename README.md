@@ -28,6 +28,7 @@ Variables requeridas:
 - `GOOGLE_DRIVE_PARENT_FOLDER_ID` opcional
 - `APP_LOGIN_USERNAME`
 - `APP_LOGIN_PASSWORD`
+- `APP_SESSION_SECRET` recomendado
 
 Para compatibilidad del frontend tambien se esperan:
 
@@ -69,6 +70,8 @@ npm run dev
 - `GET /api/auth/session`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
+- `GET|POST /api/users`
+- `PATCH /api/users/:id`
 - `GET /api/bootstrap`
 - `POST /api/products`
 - `PATCH /api/products/:id`

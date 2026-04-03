@@ -1,42 +1,41 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { APP_SESSION_COOKIE, getAppLoginCredentials } from "../../../lib/auth";
+import { authenticateAppUser } from "../../../lib/app-users";
+import { normalizeUsername } from "../../../lib/auth";
+import {
+  authenticateFallbackAdmin,
+  clearCurrentSessionUser,
+  getCurrentSessionUser,
+  setCurrentSessionUser,
+} from "../../../lib/auth-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const authenticated = cookieStore.get(APP_SESSION_COOKIE)?.value === "authenticated";
+  const user = await getCurrentSessionUser();
 
-  return NextResponse.json({ data: { authenticated } });
+  return NextResponse.json({ data: { authenticated: Boolean(user), user } });
 }
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { username?: string; password?: string };
-    const credentials = getAppLoginCredentials();
+    const normalizedUsername = normalizeUsername(body.username ?? "");
+    const password = body.password ?? "";
+    const user =
+      (await authenticateAppUser(normalizedUsername, password)) ??
+      authenticateFallbackAdmin(normalizedUsername, password);
 
-    if (
-      body.username?.trim() !== credentials.username ||
-      body.password?.trim() !== credentials.password
-    ) {
+    if (!user) {
       return NextResponse.json(
         { error: "Usuario o clave incorrectos." },
         { status: 401 },
       );
     }
 
-    const cookieStore = await cookies();
-    cookieStore.set(APP_SESSION_COOKIE, "authenticated", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 12,
-    });
+    await setCurrentSessionUser(user);
 
-    return NextResponse.json({ data: { authenticated: true } });
+    return NextResponse.json({ data: { authenticated: true, user } });
   } catch (error) {
     return NextResponse.json(
       {
@@ -48,8 +47,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  const cookieStore = await cookies();
-  cookieStore.delete(APP_SESSION_COOKIE);
+  await clearCurrentSessionUser();
 
   return NextResponse.json({ data: { success: true } });
 }

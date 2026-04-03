@@ -2,6 +2,8 @@ import Dexie, { Table } from "dexie";
 import type { CartItem, Order, Product, Shift } from "./src/lib/pos-types";
 
 export type {
+  AppRole,
+  AppUser,
   CartItem,
   ClientRecord,
   Order,
@@ -9,6 +11,7 @@ export type {
   PdfRecord,
   Product,
   SaleType,
+  SessionUser,
   Shift,
   ShiftStatus,
   StockUnit,

@@ -14,6 +14,7 @@ import { StockCostModal } from "./StockCostModal";
 import { ShiftModal } from "./ShiftModal";
 import { ProductFormModal } from "./ProductFormModal";
 import { ProductList } from "./ProductList";
+import { UsersModal } from "./UsersModal";
 import { useAuth } from "./src/components/AuthGate";
 import { importProductsRemote, syncRemoteSnapshot } from "./src/lib/api-client";
 import { ToastContainer } from "./Toast";
@@ -31,7 +32,7 @@ function subscribeToOnlineStatus(callback: () => void) {
 }
 
 export default function Home() {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLowStockOpen, setIsLowStockOpen] = useState(false);
@@ -40,6 +41,7 @@ export default function Home() {
   const [isTodaySalesOpen, setIsTodaySalesOpen] = useState(false);
   const [isStockCostOpen, setIsStockCostOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("light");
@@ -325,6 +327,14 @@ export default function Home() {
                           >
                             Turno
                           </button>
+                          {user?.role === "admin" && (
+                            <button
+                              onClick={() => handleMenuAction(() => setIsUsersModalOpen(true))}
+                              className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                            >
+                              Usuarios
+                            </button>
+                          )}
                           <button
                             onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
                             className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
@@ -432,6 +442,14 @@ export default function Home() {
         <WeeklySalesChartModal
           isOpen={isWeeklySalesOpen}
           onClose={() => setIsWeeklySalesOpen(false)}
+        />
+      )}
+
+      {isUsersModalOpen && (
+        <UsersModal
+          isOpen={isUsersModalOpen}
+          onClose={() => setIsUsersModalOpen(false)}
+          currentUsername={user?.username}
         />
       )}
 

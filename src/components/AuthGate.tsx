@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { SessionUser } from "../lib/pos-types";
 
 type AuthContextValue = {
   isAuthenticated: boolean;
+  user: SessionUser | null;
   signOut: () => Promise<void>;
 };
 
@@ -33,6 +35,7 @@ export function useAuth() {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -42,12 +45,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const data = await readJson<{ authenticated: boolean }>(
+        const data = await readJson<{ authenticated: boolean; user: SessionUser | null }>(
           await fetch("/api/auth", { cache: "no-store" }),
         );
         setIsAuthenticated(Boolean(data.authenticated));
+        setUser(data.user ?? null);
       } catch {
         setIsAuthenticated(false);
+        setUser(null);
       } finally {
         setIsCheckingSession(false);
       }
@@ -59,6 +64,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await fetch("/api/auth", { method: "DELETE" });
     setIsAuthenticated(false);
+    setUser(null);
     setPassword("");
     setError(null);
   };
@@ -66,9 +72,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo(
     () => ({
       isAuthenticated,
+      user,
       signOut,
     }),
-    [isAuthenticated],
+    [isAuthenticated, user],
   );
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -77,7 +84,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setIsSubmitting(true);
 
     try {
-      await readJson<{ authenticated: boolean }>(
+      const data = await readJson<{ authenticated: boolean; user: SessionUser | null }>(
         await fetch("/api/auth/login", {
           method: "POST",
           headers: {
@@ -86,7 +93,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ username, password }),
         }),
       );
-      setIsAuthenticated(true);
+      setIsAuthenticated(Boolean(data.authenticated));
+      setUser(data.user ?? null);
       setPassword("");
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "No se pudo iniciar sesion.");
@@ -123,6 +131,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             />
             <p className="mt-3 text-sm text-slate-500">
               Ingresa con tu usuario y clave para abrir la caja.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              El admin puede crear y gestionar usuarios desde el menu de la app.
             </p>
           </div>
 
