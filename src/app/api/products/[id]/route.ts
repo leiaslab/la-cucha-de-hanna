@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import type { ProductInput } from "../../../../lib/pos-types";
 import { deleteProduct, updateProduct } from "../../../../lib/pos-service";
+import { requireAdminUser } from "../../../../lib/route-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: Request, context: RouteContext<"/api/products/[id]">) {
+  const auth = await requireAdminUser();
+  if (auth.response) {
+    return auth.response;
+  }
+
   try {
     const { id } = await context.params;
     const payload = (await request.json()) as ProductInput;
@@ -23,6 +29,11 @@ export async function PATCH(request: Request, context: RouteContext<"/api/produc
 }
 
 export async function DELETE(_request: Request, context: RouteContext<"/api/products/[id]">) {
+  const auth = await requireAdminUser();
+  if (auth.response) {
+    return auth.response;
+  }
+
   try {
     const { id } = await context.params;
     await deleteProduct(Number(id));

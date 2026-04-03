@@ -4,6 +4,7 @@ import type {
   CheckoutPayload,
   CheckoutResult,
   ClientRecord,
+  SessionUser,
   Order,
   PaymentMethod,
   PdfGenerationResult,
@@ -57,6 +58,7 @@ type SaleRow = {
   payment_method: PaymentMethod | null;
   shift_id: number | null;
   client_id: number | null;
+  user_id: number | null;
   detalle_ventas?: SaleDetailRow[] | null;
 };
 
@@ -65,8 +67,10 @@ type ShiftRow = {
   status: Shift["status"];
   opened_at: string;
   opening_cash: number;
+  opened_by_user_id: number | null;
   opening_note: string | null;
   closed_at: string | null;
+  closed_by_user_id: number | null;
   closing_note: string | null;
   order_count: number | null;
   total_sales: number | null;
@@ -140,6 +144,7 @@ function mapOrderRow(row: SaleRow): Order {
     paymentMethod: row.payment_method ?? undefined,
     shiftId: row.shift_id ?? undefined,
     clientId: row.client_id ?? undefined,
+    userId: row.user_id ?? undefined,
   };
 }
 
@@ -148,9 +153,11 @@ function mapShiftRow(row: ShiftRow): Shift {
     id: row.id,
     status: row.status,
     openedAt: toMillis(row.opened_at) ?? Date.now(),
+    openedByUserId: row.opened_by_user_id ?? undefined,
     openingCash: row.opening_cash,
     openingNote: row.opening_note ?? undefined,
     closedAt: toMillis(row.closed_at),
+    closedByUserId: row.closed_by_user_id ?? undefined,
     closingNote: row.closing_note ?? undefined,
     orderCount: row.order_count ?? undefined,
     totalSales: row.total_sales ?? undefined,
@@ -228,7 +235,7 @@ async function getOrderById(orderId: number) {
   const row = await expectSingle(
     supabase
       .from("ventas")
-      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,detalle_ventas(*)")
+      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,detalle_ventas(*)")
       .eq("id", orderId)
       .single(),
   );
@@ -250,18 +257,25 @@ async function getShiftById(shiftId: number) {
   return mapShiftRow(row as ShiftRow);
 }
 
-export async function getBootstrapSnapshot(): Promise<RemoteSnapshot> {
+export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<RemoteSnapshot> {
   const supabase = createServiceRoleSupabaseClient();
+  const isAdmin = sessionUser.role === "admin";
+  const userId = sessionUser.id ?? null;
+  const salesQuery = supabase
+    .from("ventas")
+    .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,detalle_ventas(*)")
+    .order("created_at", { ascending: false });
+  const shiftsQuery = supabase.from("arqueos").select("*").order("opened_at", { ascending: false });
+
+  if (!isAdmin && userId !== null) {
+    salesQuery.eq("user_id", userId);
+    shiftsQuery.eq("opened_by_user_id", userId);
+  }
 
   const [products, sales, shifts, clients, pdfs] = await Promise.all([
     expectMany(supabase.from("productos").select("*").order("name")),
-    expectMany(
-      supabase
-        .from("ventas")
-        .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,detalle_ventas(*)")
-        .order("created_at", { ascending: false }),
-    ),
-    expectMany(supabase.from("arqueos").select("*").order("opened_at", { ascending: false })),
+    expectMany(salesQuery),
+    expectMany(shiftsQuery),
     expectMany(supabase.from("clientes").select("*").order("full_name")),
     expectMany(supabase.from("pdfs").select("*").order("created_at", { ascending: false })),
   ]);
@@ -441,7 +455,7 @@ export async function generateShiftPdf(shiftId: number): Promise<PdfGenerationRe
   const saleRows = await expectMany(
     supabase
       .from("ventas")
-      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,detalle_ventas(*)")
+      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,detalle_ventas(*)")
       .eq("shift_id", shiftId)
       .order("created_at", { ascending: false }),
   );
@@ -463,9 +477,10 @@ export async function generateShiftPdf(shiftId: number): Promise<PdfGenerationRe
   };
 }
 
-export async function createCheckout(input: CheckoutPayload): Promise<CheckoutResult> {
+export async function createCheckout(input: CheckoutPayload, sessionUser: SessionUser): Promise<CheckoutResult> {
   const supabase = createServiceRoleSupabaseClient();
   const payload = {
+    user_id: sessionUser.id ?? null,
     total: input.total,
     notes: input.notes ?? null,
     payment_method: input.paymentMethod,
@@ -525,6 +540,22 @@ export async function openShift(input: ShiftOpenInput) {
   const { data, error } = await supabase.rpc("open_shift", {
     p_opening_cash: input.openingCash,
     p_opening_note: input.openingNote ?? null,
+    p_user_id: null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return getShiftById(Number(data));
+}
+
+export async function openShiftForUser(input: ShiftOpenInput, sessionUser: SessionUser) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.rpc("open_shift", {
+    p_opening_cash: input.openingCash,
+    p_opening_note: input.openingNote ?? null,
+    p_user_id: sessionUser.id ?? null,
   });
 
   if (error) {
@@ -539,6 +570,37 @@ export async function closeShift(shiftId: number, input: ShiftCloseInput) {
   const { data, error } = await supabase.rpc("close_shift", {
     p_shift_id: shiftId,
     p_closing_note: input.closingNote ?? null,
+    p_user_id: null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const closedShiftId = Number(data ?? shiftId);
+  const shift = await getShiftById(closedShiftId);
+  let pdf: PdfGenerationResult | null = null;
+
+  if (input.generatePdf) {
+    try {
+      pdf = await generateShiftPdf(closedShiftId);
+    } catch (error) {
+      console.error("No se pudo generar o subir el PDF del arqueo:", error);
+    }
+  }
+
+  return {
+    shift,
+    pdf,
+  };
+}
+
+export async function closeShiftForUser(shiftId: number, input: ShiftCloseInput, sessionUser: SessionUser) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.rpc("close_shift", {
+    p_shift_id: shiftId,
+    p_closing_note: input.closingNote ?? null,
+    p_user_id: sessionUser.id ?? null,
   });
 
   if (error) {

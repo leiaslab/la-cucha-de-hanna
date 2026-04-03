@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import type { ProductInput } from "../../../lib/pos-types";
 import { createProduct, replaceProducts } from "../../../lib/pos-service";
+import { requireAdminUser } from "../../../lib/route-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const auth = await requireAdminUser();
+  if (auth.response) {
+    return auth.response;
+  }
+
   try {
     const payload = (await request.json()) as ProductInput;
     const product = await createProduct(payload);
@@ -22,6 +28,11 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const auth = await requireAdminUser();
+  if (auth.response) {
+    return auth.response;
+  }
+
   try {
     const body = (await request.json()) as { products?: ProductInput[] };
     const products = await replaceProducts(body.products ?? []);

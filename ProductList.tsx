@@ -9,12 +9,18 @@ import { deleteProductRemote } from "./src/lib/api-client";
 import { showToast } from "./Toast";
 
 interface ProductListProps {
+  canManageProducts?: boolean;
   onEditProduct: (product: Product) => void;
   extraControls?: ReactNode;
   leadingContent?: ReactNode;
 }
 
-export function ProductList({ onEditProduct, extraControls, leadingContent }: ProductListProps) {
+export function ProductList({
+  canManageProducts = false,
+  onEditProduct,
+  extraControls,
+  leadingContent,
+}: ProductListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [activeSaleProductId, setActiveSaleProductId] = useState<number | null>(null);
@@ -145,6 +151,7 @@ export function ProductList({ onEditProduct, extraControls, leadingContent }: Pr
 
       {activeSaleProduct && (
         <ProductSaleOverlay
+          canManageProducts={canManageProducts}
           product={activeSaleProduct}
           onClose={() => setActiveSaleProductId(null)}
           onEdit={(product) => {

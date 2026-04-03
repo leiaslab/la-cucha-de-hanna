@@ -43,6 +43,7 @@ export interface Order {
   paymentMethod?: PaymentMethod;
   shiftId?: number;
   clientId?: number;
+  userId?: number;
 }
 
 export interface Shift {
@@ -59,6 +60,8 @@ export interface Shift {
   mercadoPagoSales?: number;
   transferSales?: number;
   expectedCash?: number;
+  openedByUserId?: number;
+  closedByUserId?: number;
 }
 
 export interface SessionUser {

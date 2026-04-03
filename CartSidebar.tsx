@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Order } from "./db";
+import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
@@ -11,16 +11,33 @@ import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./
 import { showToast } from "./Toast";
 
 interface CartSidebarProps {
+  currentUser: SessionUser | null;
   isDarkMode: boolean;
   onToggleTheme: () => void;
 }
 
-export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
+export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSidebarProps) {
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPrintQueued, setIsPrintQueued] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
+  const activeShift = useLiveQuery(async () => {
+    if (!currentUser) {
+      return undefined;
+    }
+
+    const openShifts = await db.shifts.where("status").equals("open").toArray();
+
+    return openShifts
+      .filter((shift) => {
+        if (currentUser.id === null) {
+          return !shift.openedByUserId;
+        }
+
+        return shift.openedByUserId === currentUser.id;
+      })
+      .sort((a, b) => b.openedAt - a.openedAt)[0];
+  }, [currentUser?.id]);
 
   const queuePrint = (order: Order) => {
     setPrintingOrder(order);

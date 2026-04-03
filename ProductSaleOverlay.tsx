@@ -6,6 +6,7 @@ import { ProductSaleConfigurator } from "./ProductSaleConfigurator";
 import { formatPriceLabel, formatQuantity } from "./saleUtils";
 
 interface ProductSaleOverlayProps {
+  canManageProducts?: boolean;
   product: Product;
   onClose: () => void;
   onEdit: (product: Product) => void;
@@ -13,6 +14,7 @@ interface ProductSaleOverlayProps {
 }
 
 export function ProductSaleOverlay({
+  canManageProducts = false,
   product,
   onClose,
   onEdit,
@@ -51,25 +53,29 @@ export function ProductSaleOverlay({
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onEdit(product)}
-              className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (product.id && confirm(`Estas seguro de eliminar "${product.name}"?`)) {
-                  onDelete(product.id);
-                  onClose();
-                }
-              }}
-              className="rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100"
-            >
-              Eliminar
-            </button>
+            {canManageProducts && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onEdit(product)}
+                  className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (product.id && confirm(`Estas seguro de eliminar "${product.name}"?`)) {
+                      onDelete(product.id);
+                      onClose();
+                    }
+                  }}
+                  className="rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100"
+                >
+                  Eliminar
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={onClose}

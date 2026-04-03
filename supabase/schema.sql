@@ -24,13 +24,26 @@ create table if not exists public.productos (
   last_updated timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.app_users (
+  id bigserial primary key,
+  full_name text not null,
+  username text not null unique,
+  password_hash text not null,
+  role text not null check (role in ('admin', 'cajero')),
+  is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create table if not exists public.arqueos (
   id bigserial primary key,
   status text not null check (status in ('open', 'closed')),
   opened_at timestamptz not null default timezone('utc', now()),
+  opened_by_user_id bigint references public.app_users(id) on delete set null,
   opening_cash double precision not null default 0,
   opening_note text,
   closed_at timestamptz,
+  closed_by_user_id bigint references public.app_users(id) on delete set null,
   closing_note text,
   order_count integer,
   total_sales double precision,
@@ -43,6 +56,7 @@ create table if not exists public.arqueos (
 create table if not exists public.ventas (
   id bigserial primary key,
   client_id bigint references public.clientes(id) on delete set null,
+  user_id bigint references public.app_users(id) on delete set null,
   total double precision not null,
   status text not null default 'synced' check (status in ('pending', 'synced')),
   created_at timestamptz not null default timezone('utc', now()),
@@ -50,6 +64,15 @@ create table if not exists public.ventas (
   payment_method text check (payment_method in ('cash', 'mercado_pago', 'transfer')),
   shift_id bigint references public.arqueos(id) on delete set null
 );
+
+alter table public.arqueos
+  add column if not exists opened_by_user_id bigint references public.app_users(id) on delete set null;
+
+alter table public.arqueos
+  add column if not exists closed_by_user_id bigint references public.app_users(id) on delete set null;
+
+alter table public.ventas
+  add column if not exists user_id bigint references public.app_users(id) on delete set null;
 
 create table if not exists public.detalle_ventas (
   id bigserial primary key,
@@ -86,17 +109,6 @@ create table if not exists public.pdfs (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create table if not exists public.app_users (
-  id bigserial primary key,
-  full_name text not null,
-  username text not null unique,
-  password_hash text not null,
-  role text not null check (role in ('admin', 'cajero')),
-  is_active boolean not null default true,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
-);
-
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
@@ -131,16 +143,28 @@ declare
   v_product_id bigint;
   v_quantity double precision;
   v_payment_method text;
+  v_user_id bigint;
 begin
+  v_user_id := nullif((p_payload ->> 'user_id')::bigint, 0);
+
   select id
   into v_shift_id
   from public.arqueos
   where status = 'open'
+    and (
+      (v_user_id is null and opened_by_user_id is null)
+      or opened_by_user_id = v_user_id
+    )
   order by opened_at desc
   limit 1;
 
+  if v_shift_id is null then
+    raise exception 'No hay turno abierto para este usuario.';
+  end if;
+
   insert into public.ventas (
     client_id,
+    user_id,
     total,
     status,
     notes,
@@ -149,6 +173,7 @@ begin
   )
   values (
     nullif((p_payload ->> 'client_id')::bigint, 0),
+    v_user_id,
     coalesce((p_payload ->> 'total')::double precision, 0),
     'synced',
     nullif(p_payload ->> 'notes', ''),
@@ -225,7 +250,11 @@ begin
 end;
 $$;
 
-create or replace function public.open_shift(p_opening_cash double precision, p_opening_note text default null)
+create or replace function public.open_shift(
+  p_opening_cash double precision,
+  p_opening_note text default null,
+  p_user_id bigint default null
+)
 returns bigint
 language plpgsql
 security definer
@@ -233,17 +262,27 @@ as $$
 declare
   v_shift_id bigint;
 begin
-  if exists (select 1 from public.arqueos where status = 'open') then
-    raise exception 'Ya existe un turno abierto.';
+  if exists (
+    select 1
+    from public.arqueos
+    where status = 'open'
+      and (
+        (p_user_id is null and opened_by_user_id is null)
+        or opened_by_user_id = p_user_id
+      )
+  ) then
+    raise exception 'Ya existe un turno abierto para este usuario.';
   end if;
 
   insert into public.arqueos (
     status,
+    opened_by_user_id,
     opening_cash,
     opening_note
   )
   values (
     'open',
+    p_user_id,
     coalesce(p_opening_cash, 0),
     nullif(p_opening_note, '')
   )
@@ -268,7 +307,11 @@ begin
 end;
 $$;
 
-create or replace function public.close_shift(p_shift_id bigint, p_closing_note text default null)
+create or replace function public.close_shift(
+  p_shift_id bigint,
+  p_closing_note text default null,
+  p_user_id bigint default null
+)
 returns bigint
 language plpgsql
 security definer
@@ -286,6 +329,10 @@ begin
   from public.arqueos
   where id = p_shift_id
     and status = 'open'
+    and (
+      (p_user_id is null and opened_by_user_id is null)
+      or opened_by_user_id = p_user_id
+    )
   for update;
 
   if not found then
@@ -310,6 +357,7 @@ begin
   update public.arqueos
   set status = 'closed',
       closed_at = timezone('utc', now()),
+      closed_by_user_id = p_user_id,
       closing_note = nullif(p_closing_note, ''),
       order_count = v_order_count,
       total_sales = v_total_sales,

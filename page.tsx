@@ -31,6 +31,24 @@ function subscribeToOnlineStatus(callback: () => void) {
   };
 }
 
+async function getOpenShiftForUser(userId: number | null | undefined) {
+  if (userId === undefined) {
+    return undefined;
+  }
+
+  const openShifts = await db.shifts.where("status").equals("open").toArray();
+
+  return openShifts
+    .filter((shift) => {
+      if (userId === null) {
+        return !shift.openedByUserId;
+      }
+
+      return shift.openedByUserId === userId;
+    })
+    .sort((a, b) => b.openedAt - a.openedAt)[0];
+}
+
 export default function Home() {
   const { signOut, user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,7 +71,7 @@ export default function Home() {
   const quickMenuRef = useRef<HTMLDivElement>(null);
 
   const cartCount = useLiveQuery(() => db.cart.count()) || 0;
-  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
+  const activeShift = useLiveQuery(() => getOpenShiftForUser(user?.id), [user?.id]);
   const isOnline = useSyncExternalStore(
     subscribeToOnlineStatus,
     () => navigator.onLine,
@@ -81,12 +99,19 @@ export default function Home() {
     let isCancelled = false;
 
     const syncAndCheckShift = async () => {
+      if (!user) {
+        if (!isCancelled) {
+          setHasOpenShift(null);
+        }
+        return;
+      }
+
       try {
         if (isOnline) {
           await syncPendingOrders();
         }
       } finally {
-        const currentShift = await db.shifts.where("status").equals("open").first();
+        const currentShift = await getOpenShiftForUser(user.id);
         if (!isCancelled) {
           setHasOpenShift(Boolean(currentShift));
         }
@@ -98,7 +123,7 @@ export default function Home() {
     return () => {
       isCancelled = true;
     };
-  }, [isOnline]);
+  }, [isOnline, user]);
 
   useEffect(() => {
     if (activeShift !== undefined) {
@@ -107,10 +132,10 @@ export default function Home() {
   }, [activeShift]);
 
   useEffect(() => {
-    if (hasOpenShift === false) {
+    if (user && hasOpenShift === false) {
       setIsShiftModalOpen(true);
     }
-  }, [hasOpenShift]);
+  }, [hasOpenShift, user]);
 
   useEffect(() => {
     setTheme("light");
@@ -274,6 +299,7 @@ export default function Home() {
         <div className="grid gap-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_380px]">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-colors xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden dark:border-slate-800 dark:bg-slate-900/40">
             <ProductList
+              canManageProducts={user?.role === "admin"}
               onEditProduct={handleEditProduct}
               leadingContent={
                 <Image
@@ -377,12 +403,14 @@ export default function Home() {
                           >
                             Cerrar sesion
                           </button>
-                          <button
-                            onClick={() => handleMenuAction(handleNewProduct)}
-                            className="rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                          >
-                            + Nuevo Producto
-                          </button>
+                          {user?.role === "admin" && (
+                            <button
+                              onClick={() => handleMenuAction(handleNewProduct)}
+                              className="rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                            >
+                              + Nuevo Producto
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -393,6 +421,7 @@ export default function Home() {
           </section>
 
           <CartSidebar
+            currentUser={user}
             isDarkMode={isDarkMode}
             onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
           />
@@ -408,7 +437,13 @@ export default function Home() {
         />
       )}
 
-      {isCartOpen && <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />}
+      {isCartOpen && user && (
+        <CartModal
+          currentUser={user}
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+        />
+      )}
 
       {isLowStockOpen && (
         <LowStockReportModal
@@ -424,8 +459,9 @@ export default function Home() {
         />
       )}
 
-      {isShiftModalOpen && (
+      {isShiftModalOpen && user && (
         <ShiftModal
+          currentUser={user}
           isOpen={isShiftModalOpen}
           onClose={() => {
             if (hasOpenShift === false) {

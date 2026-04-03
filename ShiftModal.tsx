@@ -2,24 +2,44 @@
 
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type PaymentMethod } from "./db";
+import { db, type PaymentMethod, type SessionUser } from "./db";
 import { getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { closeShiftRemote, openShiftRemote } from "./src/lib/api-client";
 import { downloadPdfResult } from "./src/lib/pdf-download";
 import { showToast } from "./Toast";
 
 interface ShiftModalProps {
+  currentUser: SessionUser;
   isOpen: boolean;
   onClose: () => void;
   requireOpenShift?: boolean;
 }
 
-export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftModalProps) {
+export function ShiftModal({
+  currentUser,
+  isOpen,
+  onClose,
+  requireOpenShift = false,
+}: ShiftModalProps) {
   const [openingCash, setOpeningCash] = useState("");
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
 
-  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
+  const activeShift = useLiveQuery(async () => {
+    const openShifts = await db.shifts.where("status").equals("open").toArray();
+
+    return (
+      openShifts
+        .filter((shift) => {
+          if (currentUser.id === null) {
+            return !shift.openedByUserId;
+          }
+
+          return shift.openedByUserId === currentUser.id;
+        })
+        .sort((a, b) => b.openedAt - a.openedAt)[0]
+    );
+  }, [currentUser.id]);
   const shiftOrders = useLiveQuery(
     () => (activeShift?.id ? db.orders.where("shiftId").equals(activeShift.id).toArray() : []),
     [activeShift?.id],

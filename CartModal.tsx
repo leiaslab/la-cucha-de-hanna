@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Order } from "./db";
+import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
@@ -11,11 +11,12 @@ import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./
 import { showToast } from "./Toast";
 
 interface CartModalProps {
+  currentUser: SessionUser | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function CartModal({ isOpen, onClose }: CartModalProps) {
+export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [activeTab, setActiveTab] = useState<"cart" | "orders">("cart");
   const [notes, setNotes] = useState("");
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
@@ -23,7 +24,23 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPrintQueued, setIsPrintQueued] = useState(false);
-  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
+  const activeShift = useLiveQuery(async () => {
+    if (!currentUser) {
+      return undefined;
+    }
+
+    const openShifts = await db.shifts.where("status").equals("open").toArray();
+
+    return openShifts
+      .filter((shift) => {
+        if (currentUser.id === null) {
+          return !shift.openedByUserId;
+        }
+
+        return shift.openedByUserId === currentUser.id;
+      })
+      .sort((a, b) => b.openedAt - a.openedAt)[0];
+  }, [currentUser?.id]);
 
   const queuePrint = (order: Order) => {
     setPrintingOrder(order);
