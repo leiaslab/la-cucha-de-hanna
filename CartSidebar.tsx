@@ -7,7 +7,7 @@ import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
 import { ReceiptPrint } from "./ReceiptPrint";
-import { formatQuantity, getLineTotal, getQuantityStep } from "./saleUtils";
+import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
 
 interface CartSidebarProps {
@@ -72,7 +72,7 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
       }
     }
 
-    const newQuantity = item.quantity + delta;
+    const newQuantity = roundQuantity(item.quantity + delta);
     if (newQuantity <= 0) {
       await db.cart.delete(id);
     } else {

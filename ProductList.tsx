@@ -77,7 +77,12 @@ export function ProductList({ onEditProduct, extraControls, leadingContent }: Pr
   }, [allProductsForCategories]);
 
   const handleDelete = async (id: number) => {
-    await deleteProductRemote(id);
+    try {
+      await deleteProductRemote(id);
+      showToast("Producto eliminado correctamente.", "success");
+    } catch {
+      showToast("Error al eliminar el producto.", "error");
+    }
   };
 
   return (

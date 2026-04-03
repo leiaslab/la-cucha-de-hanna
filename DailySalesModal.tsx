@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type PaymentMethod } from "./db";
+import { db, type PaymentMethod, type StockUnit } from "./db";
 import { formatQuantity, getLineTotal } from "./saleUtils";
 
 interface DailySalesModalProps {
@@ -14,7 +14,7 @@ type ProductSummary = {
   name: string;
   quantity: number;
   total: number;
-  stockUnit: "kg" | "unit" | "liter";
+  stockUnit: StockUnit;
 };
 
 export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
@@ -53,11 +53,10 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     }
 
     monthOrders.forEach((order) => {
-      if (!order.paymentMethod) {
-        return;
+      const method = order.paymentMethod || "cash";
+      if (base[method] !== undefined) {
+        base[method] += order.total;
       }
-
-      base[order.paymentMethod] += order.total;
     });
 
     return base;

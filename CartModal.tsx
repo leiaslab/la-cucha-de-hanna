@@ -7,7 +7,7 @@ import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { ReceiptPrint } from "./ReceiptPrint";
-import { formatQuantity, getLineTotal, getQuantityStep } from "./saleUtils";
+import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
 
 interface CartModalProps {
@@ -64,17 +64,19 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
   const totalOrdersCount = useLiveQuery(() => db.orders.count()) || 0;
 
   const recentOrders = useLiveQuery(async () => {
-    const orders = await db.orders.orderBy("createdAt").reverse().toArray();
-
     if (!selectedDate) {
-      return orders;
+      return db.orders.orderBy("createdAt").reverse().toArray();
     }
 
     const [y, m, d] = selectedDate.split("-").map(Number);
     const start = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
     const end = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
 
-    return orders.filter((order) => order.createdAt >= start && order.createdAt <= end);
+    return db.orders
+      .where("createdAt")
+      .between(start, end, true, true)
+      .reverse()
+      .toArray();
   }, [selectedDate]);
 
   if (!isOpen) {
@@ -97,7 +99,7 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
       }
     }
 
-    const newQuantity = item.quantity + delta;
+    const newQuantity = roundQuantity(item.quantity + delta);
     if (newQuantity <= 0) {
       await db.cart.delete(id);
     } else {

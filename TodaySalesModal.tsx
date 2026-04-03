@@ -56,11 +56,10 @@ export function TodaySalesModal({ isOpen, onClose }: TodaySalesModalProps) {
     }
 
     todayOrders.forEach((order) => {
-      if (!order.paymentMethod) {
-        return;
+      const method = order.paymentMethod || "cash";
+      if (base[method] !== undefined) {
+        base[method] += order.total;
       }
-
-      base[order.paymentMethod] += order.total;
     });
 
     return base;
