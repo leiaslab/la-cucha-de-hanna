@@ -12,6 +12,7 @@ import { showToast } from "./Toast";
 interface ShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
+  requireOpenShift?: boolean;
 }
 
 type ShiftProductSummary = {
@@ -20,7 +21,7 @@ type ShiftProductSummary = {
   stockUnit: "unit" | "kg" | "liter";
 };
 
-export function ShiftModal({ isOpen, onClose }: ShiftModalProps) {
+export function ShiftModal({ isOpen, onClose, requireOpenShift = false }: ShiftModalProps) {
   const [openingCash, setOpeningCash] = useState("");
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
@@ -89,6 +90,7 @@ export function ShiftModal({ isOpen, onClose }: ShiftModalProps) {
     setOpeningCash("");
     setOpeningNote("");
     showToast("Turno abierto con exito.", "success");
+    onClose();
   };
 
   const handleCloseShift = async () => {
@@ -113,6 +115,8 @@ export function ShiftModal({ isOpen, onClose }: ShiftModalProps) {
     return null;
   }
 
+  const isBlockingOpen = requireOpenShift && !activeShift;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm">
       <div className="flex max-h-[84vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900">
@@ -122,16 +126,20 @@ export function ShiftModal({ isOpen, onClose }: ShiftModalProps) {
               Apertura y cierre de turno
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Maneja la caja inicial y el resumen del turno activo.
+              {isBlockingOpen
+                ? "Abre un turno para habilitar el cobro y empezar la jornada."
+                : "Maneja la caja inicial y el resumen del turno activo."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Cerrar
-          </button>
+          {!isBlockingOpen && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Cerrar
+            </button>
+          )}
         </div>
 
         {!activeShift ? (
@@ -141,7 +149,9 @@ export function ShiftModal({ isOpen, onClose }: ShiftModalProps) {
                 No hay turno abierto.
               </p>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Abre un turno para empezar a registrar las ventas dentro de una jornada.
+                {isBlockingOpen
+                  ? "Abre un turno para empezar a registrar ventas y habilitar el cobro."
+                  : "Abre un turno para empezar a registrar las ventas dentro de una jornada."}
               </p>
             </div>
 

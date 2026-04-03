@@ -20,6 +20,7 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPrintQueued, setIsPrintQueued] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
 
   const queuePrint = (order: Order) => {
     setPrintingOrder(order);
@@ -54,6 +55,7 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
   });
 
   const total = cartItems?.reduce((acc, item) => acc + getLineTotal(item), 0) || 0;
+  const hasOpenShift = Boolean(activeShift);
 
   const handleUpdateQuantity = async (id: number, delta: number) => {
     const item = await db.cart.get(id);
@@ -88,6 +90,12 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
 
   const handleCheckout = async (paymentMethod: Order["paymentMethod"]) => {
     if (!cartItems || cartItems.length === 0) {
+      return;
+    }
+
+    if (!hasOpenShift) {
+      setIsPaymentDialogOpen(false);
+      showToast("Abri un turno antes de cobrar.", "error");
       return;
     }
 
@@ -255,6 +263,11 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
               onChange={setSelectedClientId}
               compact
             />
+            {!hasOpenShift && (
+              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                Abri un turno desde el menu para habilitar el cobro.
+              </p>
+            )}
             <div className="mt-5 flex items-end justify-between gap-3">
               <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Total a cobrar</span>
               <span className="text-3xl font-black text-slate-900 dark:text-slate-50">
@@ -264,10 +277,10 @@ export function CartSidebar({ isDarkMode, onToggleTheme }: CartSidebarProps) {
             <div className="mt-4 grid gap-2">
               <button
                 onClick={() => setIsPaymentDialogOpen(true)}
-                disabled={!cartItems || cartItems.length === 0}
+                disabled={!cartItems || cartItems.length === 0 || !hasOpenShift}
                 className="w-full rounded-2xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-slate-700"
               >
-                Cobrar
+                {hasOpenShift ? "Cobrar" : "Abrir turno para cobrar"}
               </button>
               <button
                 onClick={handleClearCart}

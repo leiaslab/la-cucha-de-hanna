@@ -45,11 +45,13 @@ export default function Home() {
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [hasOpenShift, setHasOpenShift] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSyncingRef = useRef(false);
   const quickMenuRef = useRef<HTMLDivElement>(null);
 
   const cartCount = useLiveQuery(() => db.cart.count()) || 0;
+  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
   const isOnline = useSyncExternalStore(
     subscribeToOnlineStatus,
     () => navigator.onLine,
@@ -74,10 +76,39 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (isOnline) {
-      void syncPendingOrders();
-    }
+    let isCancelled = false;
+
+    const syncAndCheckShift = async () => {
+      try {
+        if (isOnline) {
+          await syncPendingOrders();
+        }
+      } finally {
+        const currentShift = await db.shifts.where("status").equals("open").first();
+        if (!isCancelled) {
+          setHasOpenShift(Boolean(currentShift));
+        }
+      }
+    };
+
+    void syncAndCheckShift();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOnline]);
+
+  useEffect(() => {
+    if (activeShift !== undefined) {
+      setHasOpenShift(Boolean(activeShift));
+    }
+  }, [activeShift]);
+
+  useEffect(() => {
+    if (hasOpenShift === false) {
+      setIsShiftModalOpen(true);
+    }
+  }, [hasOpenShift]);
 
   useEffect(() => {
     setTheme("light");
@@ -386,7 +417,14 @@ export default function Home() {
       {isShiftModalOpen && (
         <ShiftModal
           isOpen={isShiftModalOpen}
-          onClose={() => setIsShiftModalOpen(false)}
+          onClose={() => {
+            if (hasOpenShift === false) {
+              return;
+            }
+
+            setIsShiftModalOpen(false);
+          }}
+          requireOpenShift={hasOpenShift === false}
         />
       )}
 

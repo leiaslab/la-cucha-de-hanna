@@ -23,6 +23,7 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isPrintQueued, setIsPrintQueued] = useState(false);
+  const activeShift = useLiveQuery(() => db.shifts.where("status").equals("open").first());
 
   const queuePrint = (order: Order) => {
     setPrintingOrder(order);
@@ -84,6 +85,7 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
   }
 
   const total = cartItems?.reduce((acc, item) => acc + getLineTotal(item), 0) || 0;
+  const hasOpenShift = Boolean(activeShift);
 
   const handleUpdateQuantity = async (id: number, delta: number) => {
     const item = await db.cart.get(id);
@@ -109,6 +111,12 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
 
   const handleCheckout = async (paymentMethod: Order["paymentMethod"]) => {
     if (!cartItems || cartItems.length === 0) {
+      return;
+    }
+
+    if (!hasOpenShift) {
+      setIsPaymentDialogOpen(false);
+      showToast("Abri un turno antes de cobrar.", "error");
       return;
     }
 
@@ -238,6 +246,11 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
                     value={selectedClientId}
                     onChange={setSelectedClientId}
                   />
+                  {!hasOpenShift && (
+                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                      Abri un turno para habilitar el cobro.
+                    </p>
+                  )}
                   <label
                     htmlFor="order-notes"
                     className="mb-1 mt-4 block text-sm font-medium text-gray-700"
@@ -345,9 +358,10 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
               </button>
               <button
                 onClick={() => setIsPaymentDialogOpen(true)}
-                className="flex-[3] rounded-xl bg-green-600 py-3 font-bold text-white shadow-md transition-all active:scale-95 hover:bg-green-700"
+                disabled={!hasOpenShift}
+                className="flex-[3] rounded-xl bg-green-600 py-3 font-bold text-white shadow-md transition-all active:scale-95 hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                Cobrar
+                {hasOpenShift ? "Cobrar" : "Abrir turno"}
               </button>
             </div>
           </div>
