@@ -302,14 +302,29 @@ export default function Home() {
               canManageProducts={user?.role === "admin"}
               onEditProduct={handleEditProduct}
               leadingContent={
-                <Image
-                  src="/logo.png"
-                  alt="Logo La cucha de Hanna"
-                  width={152}
-                  height={152}
-                  className="h-24 w-24 object-contain sm:h-28 sm:w-28"
-                  priority
-                />
+                <div className="flex items-center gap-4">
+                  <Image
+                    src="/logo.png"
+                    alt="Logo La cucha de Hanna"
+                    width={152}
+                    height={152}
+                    className="h-24 w-24 object-contain sm:h-28 sm:w-28"
+                    priority
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      Usuario activo
+                    </p>
+                    <p className="mt-1 truncate text-lg font-black text-slate-900 sm:text-xl">
+                      {user?.fullName ?? user?.username ?? "Sin usuario"}
+                    </p>
+                    {user?.localName && (
+                      <p className="mt-1 text-sm font-medium text-slate-500">
+                        {user.localName}
+                      </p>
+                    )}
+                  </div>
+                </div>
               }
               extraControls={
                 <div className="flex flex-col gap-2 xl:w-[170px] xl:items-stretch">
