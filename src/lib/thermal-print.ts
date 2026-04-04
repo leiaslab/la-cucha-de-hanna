@@ -22,6 +22,16 @@ export type AutomaticReceiptPrintResult =
       message?: string;
     };
 
+export interface QzDiagnosticResult {
+  ok: boolean;
+  mode: "secure" | "insecure" | "unknown";
+  printers: string[];
+  defaultPrinter?: string | null;
+  host?: string;
+  port?: number;
+  message: string;
+}
+
 const STORAGE_KEY = "thermal-printer-settings";
 
 const DEFAULT_SETTINGS: ThermalPrinterSettings = {
@@ -34,11 +44,22 @@ const DEFAULT_SETTINGS: ThermalPrinterSettings = {
 type QzLike = {
   websocket: {
     isActive: () => boolean;
-    connect: () => Promise<void>;
+    connect: (options?: {
+      host?: string[];
+      usingSecure?: boolean;
+      retries?: number;
+      delay?: number;
+    }) => Promise<void>;
     disconnect: () => Promise<void>;
+    getConnectionInfo?: () => {
+      socket?: string;
+      host?: string;
+      port?: number;
+    };
   };
   printers: {
     find: (query?: string) => Promise<string[] | string>;
+    getDefault?: () => Promise<string>;
   };
   configs: {
     create: (printerName: string, options?: Record<string, unknown>) => unknown;
@@ -252,7 +273,7 @@ async function withQzConnection<T>(task: (qz: QzLike) => Promise<T>) {
   const shouldDisconnect = !qz.websocket.isActive();
 
   if (shouldDisconnect) {
-    await qz.websocket.connect();
+    await connectQz(qz);
   }
 
   try {
@@ -266,6 +287,33 @@ async function withQzConnection<T>(task: (qz: QzLike) => Promise<T>) {
       }
     }
   }
+}
+
+async function connectQz(qz: QzLike) {
+  const connectTargets = [
+    { usingSecure: true as const, host: ["localhost", "127.0.0.1", "localhost.qz.io"] },
+    { usingSecure: false as const, host: ["localhost", "127.0.0.1", "localhost.qz.io"] },
+  ];
+
+  let lastError: unknown = null;
+
+  for (const target of connectTargets) {
+    try {
+      await qz.websocket.connect({
+        usingSecure: target.usingSecure,
+        host: target.host,
+        retries: 0,
+        delay: 0,
+      });
+      return target.usingSecure ? "secure" : "insecure";
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("No se pudo abrir la conexion con QZ Tray.");
 }
 
 export function loadThermalPrinterSettings() {
@@ -300,6 +348,56 @@ export async function listThermalPrinters() {
   }
 
   return printers ? [printers] : [];
+}
+
+export async function getQzDiagnostics(): Promise<QzDiagnosticResult> {
+  try {
+    const qz = await getQzTray();
+    const shouldDisconnect = !qz.websocket.isActive();
+    const mode = shouldDisconnect ? await connectQz(qz) : "unknown";
+
+    try {
+      const printersResult = await qz.printers.find();
+      const printers = Array.isArray(printersResult)
+        ? printersResult
+        : printersResult
+          ? [printersResult]
+          : [];
+      const defaultPrinter = qz.printers.getDefault ? await qz.printers.getDefault() : null;
+      const connectionInfo = qz.websocket.getConnectionInfo?.();
+
+      return {
+        ok: true,
+        mode,
+        printers,
+        defaultPrinter,
+        host: connectionInfo?.host,
+        port: connectionInfo?.port,
+        message:
+          printers.length > 0
+            ? `QZ Tray conectado. Se encontraron ${printers.length} impresora(s).`
+            : "QZ Tray conectado, pero no encontro impresoras instaladas en Windows.",
+      };
+    } finally {
+      if (shouldDisconnect && qz.websocket.isActive()) {
+        try {
+          await qz.websocket.disconnect();
+        } catch {
+          // Ignore disconnect errors in diagnostics.
+        }
+      }
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      mode: "unknown",
+      printers: [],
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo conectar con QZ Tray en esta computadora.",
+    };
+  }
 }
 
 export async function printThermalTestTicket(settings?: ThermalPrinterSettings) {

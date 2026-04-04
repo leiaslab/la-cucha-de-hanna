@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  getQzDiagnostics,
   type ThermalPaperWidth,
   type ThermalPrinterSettings,
   listThermalPrinters,
@@ -22,8 +23,10 @@ export function ThermalPrinterModal({ isOpen, onClose }: ThermalPrinterModalProp
   const [draft, setDraft] = useState<ThermalPrinterSettings>(defaultSettings);
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isCheckingQz, setIsCheckingQz] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [diagnosticMessage, setDiagnosticMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -32,6 +35,7 @@ export function ThermalPrinterModal({ isOpen, onClose }: ThermalPrinterModalProp
 
     setDraft(loadThermalPrinterSettings());
     setStatusMessage(null);
+    setDiagnosticMessage(null);
   }, [isOpen]);
 
   if (!isOpen) {
@@ -74,6 +78,44 @@ export function ThermalPrinterModal({ isOpen, onClose }: ThermalPrinterModalProp
     saveThermalPrinterSettings(draft);
     showToast("Configuracion de impresora guardada en esta PC.", "success");
     onClose();
+  };
+
+  const handleDiagnostics = async () => {
+    setIsCheckingQz(true);
+    setDiagnosticMessage(null);
+
+    try {
+      const result = await getQzDiagnostics();
+      const parts = [result.message];
+
+      if (result.host && result.port) {
+        parts.push(`Conexion: ${result.host}:${result.port}`);
+      }
+
+      if (result.mode !== "unknown") {
+        parts.push(`Modo: ${result.mode === "secure" ? "seguro" : "inseguro"}`);
+      }
+
+      if (result.defaultPrinter) {
+        parts.push(`Predeterminada: ${result.defaultPrinter}`);
+      }
+
+      setDiagnosticMessage(parts.join(" | "));
+
+      if (!result.ok) {
+        showToast("QZ Tray no respondio correctamente.", "error");
+        return;
+      }
+
+      setAvailablePrinters(result.printers);
+      if (result.printers.length > 0) {
+        showToast("Diagnostico de QZ correcto.", "success");
+      } else {
+        showToast("QZ Tray conecto, pero Windows no devolvio impresoras.", "warning");
+      }
+    } finally {
+      setIsCheckingQz(false);
+    }
   };
 
   const handleTestPrint = async () => {
@@ -201,6 +243,14 @@ export function ThermalPrinterModal({ isOpen, onClose }: ThermalPrinterModalProp
               </button>
               <button
                 type="button"
+                onClick={() => void handleDiagnostics()}
+                disabled={isCheckingQz}
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCheckingQz ? "Revisando..." : "Diagnostico QZ"}
+              </button>
+              <button
+                type="button"
                 onClick={() => void handleTestPrint()}
                 disabled={isTesting}
                 className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -211,6 +261,12 @@ export function ThermalPrinterModal({ isOpen, onClose }: ThermalPrinterModalProp
 
             {statusMessage && (
               <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{statusMessage}</p>
+            )}
+
+            {diagnosticMessage && (
+              <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                {diagnosticMessage}
+              </p>
             )}
 
             {availablePrinters.length > 0 && (
