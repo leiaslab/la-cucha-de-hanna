@@ -299,7 +299,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
   return (
     <>
       <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center overflow-y-auto bg-slate-900/55 p-4 backdrop-blur-sm print:hidden">
-        <div className="flex max-h-[84vh] w-full max-w-4xl flex-col rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] transition-colors dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex max-h-[84vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] transition-colors dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
             <div>
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -324,6 +324,8 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
               </button>
             </div>
           </div>
+
+          <div className="flex-1 overflow-y-auto pr-1">
 
           {user?.role === "admin" && (
             <div className="mb-6 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 dark:border-slate-700 dark:bg-slate-800/50">
@@ -546,7 +548,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
             </div>
           </div>
 
-          <div className="grid flex-1 gap-6 overflow-hidden xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
             {user?.role === "admin" && (
               <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
@@ -738,6 +740,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
                 </div>
               </section>
             </div>
+          </div>
           </div>
         </div>
       </div>
