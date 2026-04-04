@@ -9,6 +9,7 @@ import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialo
 import { ReceiptPrint } from "./ReceiptPrint";
 import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
+import { useReceiptPrinting } from "./useReceiptPrinting";
 
 interface CartModalProps {
   currentUser: SessionUser | null;
@@ -19,11 +20,10 @@ interface CartModalProps {
 export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [activeTab, setActiveTab] = useState<"cart" | "orders">("cart");
   const [notes, setNotes] = useState("");
-  const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [isPrintQueued, setIsPrintQueued] = useState(false);
+  const { printingOrder, queuePrint, handleReceiptReady } = useReceiptPrinting();
   const activeShift = useLiveQuery(async () => {
     if (!currentUser) {
       return undefined;
@@ -41,19 +41,6 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
       })
       .sort((a, b) => b.openedAt - a.openedAt)[0];
   }, [currentUser?.id]);
-
-  const queuePrint = (order: Order) => {
-    setPrintingOrder(order);
-    setIsPrintQueued(true);
-
-    const handleAfterPrint = () => {
-      setPrintingOrder(null);
-      setIsPrintQueued(false);
-      window.removeEventListener("afterprint", handleAfterPrint);
-    };
-
-    window.addEventListener("afterprint", handleAfterPrint);
-  };
 
   const cartItems = useLiveQuery(async () => {
     const items = await db.cart.toArray();
@@ -387,15 +374,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
         <ReceiptPrint
           order={printingOrder}
           onReadyToPrint={() => {
-            if (!isPrintQueued) {
-              return;
-            }
-
-            window.requestAnimationFrame(() => {
-              window.requestAnimationFrame(() => {
-                window.print();
-              });
-            });
+            void handleReceiptReady();
           }}
         />
       </div>

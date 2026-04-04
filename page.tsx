@@ -14,6 +14,7 @@ import { StockCostModal } from "./StockCostModal";
 import { ShiftModal } from "./ShiftModal";
 import { ProductFormModal } from "./ProductFormModal";
 import { ProductList } from "./ProductList";
+import { ThermalPrinterModal } from "./ThermalPrinterModal";
 import { UsersModal } from "./UsersModal";
 import { useAuth } from "./src/components/AuthGate";
 import { importProductsRemote, syncRemoteSnapshot } from "./src/lib/api-client";
@@ -60,6 +61,7 @@ export default function Home() {
   const [isStockCostOpen, setIsStockCostOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [isThermalPrinterOpen, setIsThermalPrinterOpen] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("light");
@@ -424,6 +426,12 @@ export default function Home() {
                             </>
                           )}
                           <button
+                            onClick={() => handleMenuAction(() => setIsThermalPrinterOpen(true))}
+                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                          >
+                            Impresora termica
+                          </button>
+                          <button
                             onClick={() => handleMenuAction(() => void signOut())}
                             className="rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
                           >
@@ -505,6 +513,13 @@ export default function Home() {
           isOpen={isUsersModalOpen}
           onClose={() => setIsUsersModalOpen(false)}
           currentUsername={user?.username}
+        />
+      )}
+
+      {isThermalPrinterOpen && (
+        <ThermalPrinterModal
+          isOpen={isThermalPrinterOpen}
+          onClose={() => setIsThermalPrinterOpen(false)}
         />
       )}
 
