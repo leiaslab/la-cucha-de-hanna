@@ -239,8 +239,10 @@ async function getQzTray() {
   const qzModule = await import("qz-tray");
   const qz = (qzModule.default ?? qzModule) as QzLike;
 
+  // Mientras no carguemos un certificado real del sitio, dejamos que QZ Tray
+  // maneje la autorizacion como conexion no firmada en lugar de enviar firmas invalidas.
   qz.security.setCertificatePromise(async () => null);
-  qz.security.setSignaturePromise(async () => "");
+  qz.security.setSignaturePromise(async () => undefined);
 
   return qz;
 }
