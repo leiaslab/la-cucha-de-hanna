@@ -354,63 +354,65 @@ export default function Home() {
                             Turno
                           </button>
                           {user?.role === "admin" && (
+                            <>
+                              <button
+                                onClick={() => handleMenuAction(() => setIsUsersModalOpen(true))}
+                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Usuarios
+                              </button>
+                              <button
+                                onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
+                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Resumen del mes
+                              </button>
+                              <button
+                                onClick={() => handleMenuAction(() => setIsWeeklySalesOpen(true))}
+                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Ventas 7 Dias
+                              </button>
+                              <button
+                                onClick={() => handleMenuAction(() => setIsTodaySalesOpen(true))}
+                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Ventas hoy
+                              </button>
+                              <button
+                                onClick={() => handleMenuAction(() => setIsStockCostOpen(true))}
+                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Coste de stock
+                              </button>
+                              <button
+                                onClick={() => handleMenuAction(() => setIsLowStockOpen(true))}
+                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Reporte stock
+                              </button>
+                              <button
+                                onClick={() => handleMenuAction(handleNewProduct)}
+                                className="rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                              >
+                                + Nuevo Producto
+                              </button>
+                            </>
+                          )}
+                          {user?.role === "admin" && (
                             <button
-                              onClick={() => handleMenuAction(() => setIsUsersModalOpen(true))}
+                              onClick={() => handleMenuAction(() => setIsCartOpen(true))}
                               className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                             >
-                              Usuarios
+                              Ver carrito
                             </button>
                           )}
-                          <button
-                            onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Resumen del mes
-                          </button>
-                          <button
-                            onClick={() => handleMenuAction(() => setIsWeeklySalesOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Ventas 7 Dias
-                          </button>
-                          <button
-                            onClick={() => handleMenuAction(() => setIsTodaySalesOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Ventas hoy
-                          </button>
-                          <button
-                            onClick={() => handleMenuAction(() => setIsStockCostOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Coste de stock
-                          </button>
-                          <button
-                            onClick={() => handleMenuAction(() => setIsLowStockOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Reporte stock
-                          </button>
-                          <button
-                            onClick={() => handleMenuAction(() => setIsCartOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800 xl:hidden"
-                          >
-                            Ver carrito
-                          </button>
                           <button
                             onClick={() => handleMenuAction(() => void signOut())}
                             className="rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
                           >
                             Cerrar sesion
                           </button>
-                          {user?.role === "admin" && (
-                            <button
-                              onClick={() => handleMenuAction(handleNewProduct)}
-                              className="rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                            >
-                              + Nuevo Producto
-                            </button>
-                          )}
                         </div>
                       </div>
                     )}
