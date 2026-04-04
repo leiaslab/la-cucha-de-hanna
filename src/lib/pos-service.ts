@@ -4,6 +4,7 @@ import type {
   CheckoutPayload,
   CheckoutResult,
   ClientRecord,
+  LocalRecord,
   SessionUser,
   Order,
   PaymentMethod,
@@ -11,6 +12,7 @@ import type {
   PdfRecord,
   Product,
   ProductInput,
+  ProductLocalStock,
   RemoteSnapshot,
   Shift,
   ShiftCloseInput,
@@ -34,6 +36,16 @@ type ProductRow = {
   description: string | null;
   image_url: string | null;
   last_updated: string;
+};
+
+type ProductLocalStockRow = {
+  id: number;
+  product_id: number;
+  local_id: number;
+  stock: number;
+  low_stock_alert_threshold: number;
+  created_at: string;
+  updated_at: string;
 };
 
 type SaleDetailRow = {
@@ -120,20 +132,59 @@ function toMillis(value: string | null | undefined) {
   return value ? new Date(value).getTime() : undefined;
 }
 
-function mapProductRow(row: ProductRow): Product {
+function mapProductLocalStockRow(
+  row: ProductLocalStockRow,
+  localNamesById?: Map<number, LocalRow>,
+): ProductLocalStock {
+  return {
+    localId: row.local_id,
+    localName: localNamesById?.get(row.local_id)?.name,
+    stock: row.stock,
+    lowStockAlertThreshold: row.low_stock_alert_threshold,
+    createdAt: toMillis(row.created_at),
+    updatedAt: toMillis(row.updated_at),
+  };
+}
+
+function createProductLocalStockMap(rows: ProductLocalStockRow[]) {
+  return rows.reduce<Map<number, ProductLocalStockRow[]>>((acc, row) => {
+    const current = acc.get(row.product_id) ?? [];
+    current.push(row);
+    acc.set(row.product_id, current);
+    return acc;
+  }, new Map<number, ProductLocalStockRow[]>());
+}
+
+function mapProductRow(
+  row: ProductRow,
+  localStocksByProductId?: Map<number, ProductLocalStockRow[]>,
+  localNamesById?: Map<number, LocalRow>,
+  activeLocalId?: number | null,
+): Product {
+  const localStocks = (localStocksByProductId?.get(row.id) ?? [])
+    .map((stockRow) => mapProductLocalStockRow(stockRow, localNamesById))
+    .sort((a, b) => (a.localName ?? "").localeCompare(b.localName ?? ""));
+  const preferredLocalStock =
+    activeLocalId === undefined || activeLocalId === null
+      ? undefined
+      : localStocks.find((stockRow) => stockRow.localId === activeLocalId);
+  const projectedLocalStock = preferredLocalStock ?? (localStocks.length === 1 ? localStocks[0] : undefined);
+
   return {
     id: row.id,
     name: row.name,
     price: row.price,
     cost: row.cost,
-    stock: row.stock,
-    lowStockAlertThreshold: row.low_stock_alert_threshold,
+    stock: projectedLocalStock?.stock ?? row.stock,
+    lowStockAlertThreshold:
+      projectedLocalStock?.lowStockAlertThreshold ?? row.low_stock_alert_threshold,
     category: row.category,
     slug: row.slug,
     saleType: row.sale_type,
     stockUnit: row.stock_unit,
     description: row.description ?? undefined,
     imageUrl: row.image_url ?? undefined,
+    localStocks: localStocks.length > 0 ? localStocks : undefined,
     lastUpdated: toMillis(row.last_updated) ?? Date.now(),
   };
 }
@@ -217,6 +268,15 @@ function createLocalMap(rows: LocalRow[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
+function mapLocalRow(row: LocalRow): LocalRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: toMillis(row.created_at),
+    updatedAt: toMillis(row.updated_at),
+  };
+}
+
 function mapPdfRow(row: PdfRow): PdfRecord {
   return {
     id: row.id,
@@ -230,13 +290,18 @@ function mapPdfRow(row: PdfRow): PdfRecord {
   };
 }
 
-function mapProductInput(input: ProductInput) {
+function mapProductInput(input: ProductInput, preferredLocalId?: number | null) {
+  const preferredLocalStock =
+    input.localStocks?.find((localStock) => localStock.localId === preferredLocalId) ??
+    input.localStocks?.[0];
+
   return {
     name: input.name,
     price: input.price,
     cost: input.cost,
-    stock: input.stock,
-    low_stock_alert_threshold: input.lowStockAlertThreshold,
+    stock: preferredLocalStock?.stock ?? input.stock,
+    low_stock_alert_threshold:
+      preferredLocalStock?.lowStockAlertThreshold ?? input.lowStockAlertThreshold,
     category: input.category,
     slug: input.slug,
     sale_type: input.saleType,
@@ -264,6 +329,72 @@ async function expectMany<T>(promise: PromiseLike<{ data: T[] | null; error: { m
     throw new Error(error.message);
   }
   return data ?? [];
+}
+
+async function listLocalRows() {
+  const supabase = createServiceRoleSupabaseClient();
+  return expectMany(supabase.from("locales").select("*").order("name"));
+}
+
+function normalizeProductLocalStocks(input: ProductInput, localRows: LocalRow[]) {
+  if (input.localStocks && input.localStocks.length > 0) {
+    const uniqueStocks = new Map<number, ProductLocalStock>();
+
+    input.localStocks.forEach((localStock) => {
+      if (!Number.isFinite(localStock.localId)) {
+        return;
+      }
+
+      uniqueStocks.set(localStock.localId, {
+        localId: localStock.localId,
+        stock: Math.max(0, localStock.stock),
+        lowStockAlertThreshold: Math.max(0, localStock.lowStockAlertThreshold),
+      });
+    });
+
+    return Array.from(uniqueStocks.values());
+  }
+
+  return localRows.map((localRow) => ({
+    localId: localRow.id,
+    stock: Math.max(0, input.stock),
+    lowStockAlertThreshold: Math.max(0, input.lowStockAlertThreshold),
+  }));
+}
+
+async function replaceProductLocalStocks(
+  productId: number,
+  localStocks: ProductLocalStock[],
+) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from("productos_stock_local")
+    .delete()
+    .eq("product_id", productId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  if (localStocks.length === 0) {
+    return [] as ProductLocalStockRow[];
+  }
+
+  const inserted = await expectMany(
+    supabase
+      .from("productos_stock_local")
+      .insert(
+        localStocks.map((localStock) => ({
+          product_id: productId,
+          local_id: localStock.localId,
+          stock: localStock.stock,
+          low_stock_alert_threshold: localStock.lowStockAlertThreshold,
+        })),
+      )
+      .select("*"),
+  );
+
+  return inserted as ProductLocalStockRow[];
 }
 
 async function getOrderById(orderId: number) {
@@ -320,19 +451,26 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
   const supabase = createServiceRoleSupabaseClient();
   const isAdmin = sessionUser.role === "admin";
   const userId = sessionUser.id ?? null;
+  const activeLocalId = sessionUser.localId ?? null;
   const salesQuery = supabase
     .from("ventas")
     .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,local_id,detalle_ventas(*)")
     .order("created_at", { ascending: false });
   const shiftsQuery = supabase.from("arqueos").select("*").order("opened_at", { ascending: false });
+  const productLocalStocksQuery = supabase.from("productos_stock_local").select("*");
 
   if (!isAdmin && userId !== null) {
     salesQuery.eq("user_id", userId);
     shiftsQuery.eq("opened_by_user_id", userId);
   }
 
-  const [products, sales, shifts, clients, pdfs, userRows, localRows] = await Promise.all([
+  if (!isAdmin && activeLocalId !== null) {
+    productLocalStocksQuery.eq("local_id", activeLocalId);
+  }
+
+  const [products, productLocalStocks, sales, shifts, clients, pdfs, userRows, localRows] = await Promise.all([
     expectMany(supabase.from("productos").select("*").order("name")),
+    expectMany(productLocalStocksQuery),
     expectMany(salesQuery),
     expectMany(shiftsQuery),
     expectMany(supabase.from("clientes").select("*").order("full_name")),
@@ -343,9 +481,13 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
 
   const userNamesById = createUserReferenceMap(userRows as AppUserReferenceRow[]);
   const localNamesById = createLocalMap(localRows as LocalRow[]);
+  const localStocksByProductId = createProductLocalStockMap(productLocalStocks as ProductLocalStockRow[]);
 
   return {
-    products: (products as ProductRow[]).map(mapProductRow),
+    locales: (localRows as LocalRow[]).map(mapLocalRow),
+    products: (products as ProductRow[]).map((row) =>
+      mapProductRow(row, localStocksByProductId, localNamesById, activeLocalId),
+    ),
     orders: (sales as SaleRow[]).map((row) => mapOrderRow(row, userNamesById, localNamesById)),
     shifts: (shifts as ShiftRow[]).map((row) => mapShiftRow(row, localNamesById)),
     clients: (clients as ClientRow[]).map(mapClientRow),
@@ -353,33 +495,57 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
   };
 }
 
-export async function createProduct(input: ProductInput) {
+export async function createProduct(input: ProductInput, sessionUser?: SessionUser | null) {
   const supabase = createServiceRoleSupabaseClient();
+  const preferredLocalId = sessionUser?.localId ?? null;
+  const localRows = (await listLocalRows()) as LocalRow[];
 
   const row = await expectSingle(
     supabase
       .from("productos")
-      .insert(mapProductInput(input))
+      .insert(mapProductInput(input, preferredLocalId))
       .select("*")
       .single(),
   );
 
-  return mapProductRow(row as ProductRow);
+  const createdProduct = row as ProductRow;
+  const normalizedLocalStocks = normalizeProductLocalStocks(input, localRows);
+  const localStockRows = await replaceProductLocalStocks(createdProduct.id, normalizedLocalStocks);
+  const localNamesById = createLocalMap(localRows);
+
+  return mapProductRow(
+    createdProduct,
+    createProductLocalStockMap(localStockRows),
+    localNamesById,
+    preferredLocalId,
+  );
 }
 
-export async function updateProduct(id: number, input: ProductInput) {
+export async function updateProduct(id: number, input: ProductInput, sessionUser?: SessionUser | null) {
   const supabase = createServiceRoleSupabaseClient();
+  const preferredLocalId = sessionUser?.localId ?? null;
+  const localRows = (await listLocalRows()) as LocalRow[];
 
   const row = await expectSingle(
     supabase
       .from("productos")
-      .update(mapProductInput(input))
+      .update(mapProductInput(input, preferredLocalId))
       .eq("id", id)
       .select("*")
       .single(),
   );
 
-  return mapProductRow(row as ProductRow);
+  const updatedProduct = row as ProductRow;
+  const normalizedLocalStocks = normalizeProductLocalStocks(input, localRows);
+  const localStockRows = await replaceProductLocalStocks(updatedProduct.id, normalizedLocalStocks);
+  const localNamesById = createLocalMap(localRows);
+
+  return mapProductRow(
+    updatedProduct,
+    createProductLocalStockMap(localStockRows),
+    localNamesById,
+    preferredLocalId,
+  );
 }
 
 export async function deleteProduct(id: number) {
@@ -390,8 +556,10 @@ export async function deleteProduct(id: number) {
   }
 }
 
-export async function replaceProducts(products: ProductInput[]) {
+export async function replaceProducts(products: ProductInput[], sessionUser?: SessionUser | null) {
   const supabase = createServiceRoleSupabaseClient();
+  const preferredLocalId = sessionUser?.localId ?? null;
+  const localRows = (await listLocalRows()) as LocalRow[];
   const { error: deleteError } = await supabase.from("productos").delete().neq("id", 0);
   if (deleteError) {
     throw new Error(deleteError.message);
@@ -404,11 +572,51 @@ export async function replaceProducts(products: ProductInput[]) {
   const inserted = await expectMany(
     supabase
       .from("productos")
-      .insert(products.map(mapProductInput))
+      .insert(products.map((product) => mapProductInput(product, preferredLocalId)))
       .select("*"),
   );
 
-  return (inserted as ProductRow[]).map(mapProductRow);
+  const insertedRows = inserted as ProductRow[];
+  const insertedBySlug = new Map(insertedRows.map((row) => [row.slug, row]));
+  const localStockInserts = products.flatMap((product) => {
+    const insertedRow = insertedBySlug.get(product.slug);
+    if (!insertedRow) {
+      return [];
+    }
+
+    return normalizeProductLocalStocks(product, localRows).map((localStock) => ({
+      product_id: insertedRow.id,
+      local_id: localStock.localId,
+      stock: localStock.stock,
+      low_stock_alert_threshold: localStock.lowStockAlertThreshold,
+    }));
+  });
+
+  if (localStockInserts.length > 0) {
+    const { error: localStockError } = await supabase.from("productos_stock_local").insert(localStockInserts);
+    if (localStockError) {
+      throw new Error(localStockError.message);
+    }
+  }
+
+  const localStockRows = localStockInserts.length > 0
+    ? (await expectMany(
+        supabase
+          .from("productos_stock_local")
+          .select("*")
+          .in(
+            "product_id",
+            insertedRows.map((row) => row.id),
+          ),
+      )) as ProductLocalStockRow[]
+    : [];
+
+  const localNamesById = createLocalMap(localRows);
+  const localStocksByProductId = createProductLocalStockMap(localStockRows);
+
+  return insertedRows.map((row) =>
+    mapProductRow(row, localStocksByProductId, localNamesById, preferredLocalId),
+  );
 }
 
 export async function listClients() {
@@ -586,10 +794,29 @@ export async function createCheckout(input: CheckoutPayload, sessionUser: Sessio
 
   const order = await getOrderById(orderId);
   const productIds = input.cartItems.map((item) => item.productId);
-  const productRows = await expectMany(
-    supabase.from("productos").select("*").in("id", productIds),
+  const [productRows, productLocalStockRows, localRows] = await Promise.all([
+    expectMany(supabase.from("productos").select("*").in("id", productIds)),
+    sessionUser.localId
+      ? expectMany(
+          supabase
+            .from("productos_stock_local")
+            .select("*")
+            .eq("local_id", sessionUser.localId)
+            .in("product_id", productIds),
+        )
+      : Promise.resolve([] as ProductLocalStockRow[]),
+    sessionUser.localId
+      ? expectMany(supabase.from("locales").select("*").eq("id", sessionUser.localId))
+      : Promise.resolve([] as LocalRow[]),
+  ]);
+  const updatedProducts = (productRows as ProductRow[]).map((row) =>
+    mapProductRow(
+      row,
+      createProductLocalStockMap(productLocalStockRows as ProductLocalStockRow[]),
+      createLocalMap(localRows as LocalRow[]),
+      sessionUser.localId ?? null,
+    ),
   );
-  const updatedProducts = (productRows as ProductRow[]).map(mapProductRow);
   const shift = order.shiftId ? await getShiftById(order.shiftId) : null;
   let pdf: PdfGenerationResult | null = null;
 

@@ -11,6 +11,15 @@ export interface LocalRecord {
   updatedAt?: number;
 }
 
+export interface ProductLocalStock {
+  localId: number;
+  localName?: string;
+  stock: number;
+  lowStockAlertThreshold: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export interface Product {
   id?: number;
   name: string;
@@ -25,6 +34,7 @@ export interface Product {
   description?: string;
   imageUrl?: string;
   imageBlob?: Blob;
+  localStocks?: ProductLocalStock[];
   lastUpdated: number;
 }
 
@@ -137,6 +147,7 @@ export interface PdfRecord {
 }
 
 export interface RemoteSnapshot {
+  locales: LocalRecord[];
   products: Product[];
   orders: Order[];
   shifts: Shift[];
@@ -156,6 +167,7 @@ export interface ProductInput {
   stockUnit: StockUnit;
   description?: string;
   imageUrl?: string;
+  localStocks?: ProductLocalStock[];
   lastUpdated?: number;
 }
 

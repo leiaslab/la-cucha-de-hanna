@@ -1,11 +1,12 @@
 import Dexie, { Table } from "dexie";
-import type { CartItem, Order, Product, Shift } from "./src/lib/pos-types";
+import type { CartItem, LocalRecord, Order, Product, Shift } from "./src/lib/pos-types";
 
 export type {
   AppRole,
   AppUser,
   CartItem,
   ClientRecord,
+  LocalRecord,
   Order,
   PaymentMethod,
   PdfRecord,
@@ -18,6 +19,7 @@ export type {
 } from "./src/lib/pos-types";
 
 export class PetShopDatabase extends Dexie {
+  locals!: Table<LocalRecord>;
   products!: Table<Product>;
   cart!: Table<CartItem>;
   orders!: Table<Order>;
@@ -110,6 +112,14 @@ export class PetShopDatabase extends Dexie {
           order.shiftId = order.shiftId ?? undefined;
         });
       });
+
+    this.version(8).stores({
+      locals: "++id, name",
+      products: "++id, name, slug, category, stock, saleType, stockUnit, cost, lowStockAlertThreshold",
+      cart: "++id, productId",
+      orders: "++id, status, createdAt, shiftId",
+      shifts: "++id, status, openedAt, closedAt",
+    });
 
     this.on("populate", () => {
       this.products.bulkAdd([

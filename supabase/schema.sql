@@ -93,6 +93,17 @@ alter table public.arqueos
 alter table public.ventas
   add column if not exists local_id bigint references public.locales(id) on delete set null;
 
+create table if not exists public.productos_stock_local (
+  id bigserial primary key,
+  product_id bigint not null references public.productos(id) on delete cascade,
+  local_id bigint not null references public.locales(id) on delete cascade,
+  stock double precision not null default 0,
+  low_stock_alert_threshold double precision not null default 5,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique (product_id, local_id)
+);
+
 create table if not exists public.detalle_ventas (
   id bigserial primary key,
   sale_id bigint not null references public.ventas(id) on delete cascade,
@@ -156,6 +167,27 @@ before update on public.locales
 for each row
 execute function public.touch_updated_at();
 
+drop trigger if exists productos_stock_local_touch_updated_at on public.productos_stock_local;
+create trigger productos_stock_local_touch_updated_at
+before update on public.productos_stock_local
+for each row
+execute function public.touch_updated_at();
+
+insert into public.productos_stock_local (
+  product_id,
+  local_id,
+  stock,
+  low_stock_alert_threshold
+)
+select
+  productos.id,
+  locales.id,
+  productos.stock,
+  productos.low_stock_alert_threshold
+from public.productos
+cross join public.locales
+on conflict (product_id, local_id) do nothing;
+
 create or replace function public.create_sale(p_payload jsonb)
 returns bigint
 language plpgsql
@@ -216,19 +248,41 @@ begin
     v_product_id := (v_item ->> 'product_id')::bigint;
     v_quantity := coalesce((v_item ->> 'quantity')::double precision, 0);
 
-    perform 1
-    from public.productos
-    where id = v_product_id
-      and stock >= v_quantity
-    for update;
+    if v_local_id is not null then
+      perform 1
+      from public.productos_stock_local
+      where product_id = v_product_id
+        and local_id = v_local_id
+        and stock >= v_quantity
+      for update;
 
-    if not found then
-      raise exception 'Stock insuficiente o producto inexistente para el item %', v_product_id;
+      if not found then
+        raise exception 'Stock insuficiente para el producto % en este local.', v_product_id;
+      end if;
+
+      update public.productos_stock_local
+      set stock = stock - v_quantity
+      where product_id = v_product_id
+        and local_id = v_local_id;
+    else
+      perform 1
+      from public.productos
+      where id = v_product_id
+        and stock >= v_quantity
+      for update;
+
+      if not found then
+        raise exception 'Stock insuficiente o producto inexistente para el item %', v_product_id;
+      end if;
+
+      update public.productos
+      set stock = stock - v_quantity,
+          last_updated = timezone('utc', now())
+      where id = v_product_id;
     end if;
 
     update public.productos
-    set stock = stock - v_quantity,
-        last_updated = timezone('utc', now())
+    set last_updated = timezone('utc', now())
     where id = v_product_id;
 
     insert into public.detalle_ventas (
@@ -308,6 +362,10 @@ begin
     into v_local_id
     from public.app_users
     where id = p_user_id;
+
+    if v_local_id is null then
+      raise exception 'El usuario no tiene un local asignado.';
+    end if;
   end if;
 
   insert into public.arqueos (

@@ -428,6 +428,7 @@ export default function Home() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           productToEdit={editingProduct}
+          currentUser={user}
         />
       )}
 

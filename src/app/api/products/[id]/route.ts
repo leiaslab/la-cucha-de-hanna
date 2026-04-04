@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
 
 export async function PATCH(request: Request, context: RouteContext<"/api/products/[id]">) {
   const auth = await requireAdminUser();
-  if (auth.response) {
+  if (auth.response || !auth.user) {
     return auth.response;
   }
 
   try {
     const { id } = await context.params;
     const payload = (await request.json()) as ProductInput;
-    const product = await updateProduct(Number(id), payload);
+    const product = await updateProduct(Number(id), payload, auth.user);
     return NextResponse.json({ data: product });
   } catch (error) {
     return NextResponse.json(

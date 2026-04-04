@@ -6,6 +6,7 @@ import {
   createAppUserRemote,
   deleteAppUserRemote,
   listAppUsersRemote,
+  syncRemoteSnapshot,
   updateAppUserRemote,
 } from "./src/lib/api-client";
 import { showToast } from "./Toast";
@@ -101,6 +102,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
           isActive,
         });
         await loadUsers();
+        await syncRemoteSnapshot().catch(() => undefined);
         showToast("Usuario actualizado con exito.", "success");
       } else {
         await createAppUserRemote({
@@ -111,6 +113,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
           role: form.role,
         });
         await loadUsers();
+        await syncRemoteSnapshot().catch(() => undefined);
         showToast("Usuario creado con exito.", "success");
       }
 

@@ -2,30 +2,82 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type Product, type StockUnit } from "./db";
+import { db, type LocalRecord, type Product, type SessionUser, type StockUnit } from "./db";
 import { saveProductRemote } from "./src/lib/api-client";
 
 type SaleMode = "unit" | "kg" | "liter";
+
+type LocalStockFormState = {
+  localId: number;
+  localName: string;
+  stock: string;
+  lowStockAlertThreshold: string;
+};
+
+function buildLocalStockFields(
+  productToEdit: Product | null | undefined,
+  availableLocales: LocalRecord[] | undefined,
+  currentUser: SessionUser | null | undefined,
+): LocalStockFormState[] {
+  const rows = new Map<number, LocalStockFormState>();
+
+  (availableLocales ?? []).forEach((locale) => {
+    rows.set(locale.id, {
+      localId: locale.id,
+      localName: locale.name,
+      stock: "0",
+      lowStockAlertThreshold: "5",
+    });
+  });
+
+  if (currentUser?.localId && !rows.has(currentUser.localId)) {
+    rows.set(currentUser.localId, {
+      localId: currentUser.localId,
+      localName: currentUser.localName ?? "Local actual",
+      stock: "0",
+      lowStockAlertThreshold: "5",
+    });
+  }
+
+  (productToEdit?.localStocks ?? []).forEach((localStock) => {
+    rows.set(localStock.localId, {
+      localId: localStock.localId,
+      localName: localStock.localName ?? rows.get(localStock.localId)?.localName ?? `Local ${localStock.localId}`,
+      stock: String(localStock.stock),
+      lowStockAlertThreshold: String(localStock.lowStockAlertThreshold ?? 5),
+    });
+  });
+
+  if (productToEdit && rows.size === 0) {
+    const fallbackLocalId = currentUser?.localId ?? 1;
+    rows.set(fallbackLocalId, {
+      localId: fallbackLocalId,
+      localName: currentUser?.localName ?? "Local principal",
+      stock: String(productToEdit.stock),
+      lowStockAlertThreshold: String(productToEdit.lowStockAlertThreshold ?? 5),
+    });
+  }
+
+  return Array.from(rows.values()).sort((a, b) => a.localName.localeCompare(b.localName));
+}
 
 interface ProductFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   productToEdit?: Product | null;
+  currentUser?: SessionUser | null;
 }
 
 export function ProductFormModal({
   isOpen,
   onClose,
   productToEdit,
+  currentUser,
 }: ProductFormModalProps) {
   const [name, setName] = useState(productToEdit?.name ?? "");
   const [price, setPrice] = useState(productToEdit ? String(productToEdit.price) : "");
   const [cost, setCost] = useState(
     productToEdit ? String(productToEdit.cost ?? productToEdit.price ?? 0) : "",
-  );
-  const [stock, setStock] = useState(productToEdit ? String(productToEdit.stock) : "");
-  const [lowStockAlertThreshold, setLowStockAlertThreshold] = useState(
-    productToEdit ? String(productToEdit.lowStockAlertThreshold ?? 5) : "5",
   );
   const [saleType, setSaleType] = useState(productToEdit?.saleType ?? "fixed");
   const [stockUnit, setStockUnit] = useState<StockUnit>(productToEdit?.stockUnit ?? "unit");
@@ -35,6 +87,7 @@ export function ProductFormModal({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [localStocks, setLocalStocks] = useState<LocalStockFormState[]>([]);
   const saleMode: SaleMode = saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
   const existingCategories = useLiveQuery(async () => {
     const products = await db.products.toArray();
@@ -42,6 +95,7 @@ export function ProductFormModal({
       (a, b) => a.localeCompare(b),
     );
   }, []);
+  const availableLocales = useLiveQuery(() => db.locals.toArray());
 
   const previewBlob = imageFile ?? (!imageUrl ? productToEdit?.imageBlob ?? null : null);
   const previewObjectUrl = useMemo(
@@ -64,6 +118,10 @@ export function ProductFormModal({
       }
     };
   }, [previewObjectUrl]);
+
+  useEffect(() => {
+    setLocalStocks(buildLocalStockFields(productToEdit, availableLocales, currentUser));
+  }, [availableLocales, currentUser, productToEdit]);
 
   if (!isOpen) {
     return null;
@@ -88,13 +146,11 @@ export function ProductFormModal({
     const trimmedImageUrl = imageUrl.trim();
     const parsedPrice = Number(price);
     const parsedCost = Number(cost);
-    const parsedStock = Number(stock);
-    const parsedLowStockAlertThreshold = Number(lowStockAlertThreshold);
     const normalizedStockUnit: StockUnit =
       saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
 
-    if (!trimmedName || !trimmedCategory || price === "" || cost === "" || stock === "" || lowStockAlertThreshold === "") {
-      setError("Completa nombre, precio, costo, stock, alerta y categoria.");
+    if (!trimmedName || !trimmedCategory || price === "" || cost === "") {
+      setError("Completa nombre, precio, costo, categoria y stock por local.");
       return;
     }
 
@@ -108,13 +164,28 @@ export function ProductFormModal({
       return;
     }
 
-    if (!Number.isFinite(parsedStock) || parsedStock < 0) {
-      setError("El stock debe ser un numero valido.");
+    if (localStocks.length === 0) {
+      setError("Primero crea al menos un local para poder cargar stock.");
       return;
     }
 
-    if (!Number.isFinite(parsedLowStockAlertThreshold) || parsedLowStockAlertThreshold < 0) {
-      setError("La alerta de stock debe ser un numero valido.");
+    const normalizedLocalStocks = localStocks.map((localStock) => ({
+      localId: localStock.localId,
+      localName: localStock.localName,
+      stock: Number(localStock.stock),
+      lowStockAlertThreshold: Number(localStock.lowStockAlertThreshold),
+    }));
+
+    const invalidLocalStock = normalizedLocalStocks.find(
+      (localStock) =>
+        !Number.isFinite(localStock.stock) ||
+        localStock.stock < 0 ||
+        !Number.isFinite(localStock.lowStockAlertThreshold) ||
+        localStock.lowStockAlertThreshold < 0,
+    );
+
+    if (invalidLocalStock) {
+      setError(`Revisa el stock o la alerta del local "${invalidLocalStock.localName}".`);
       return;
     }
 
@@ -123,18 +194,23 @@ export function ProductFormModal({
       nextImageUrl = await readFileAsDataUrl(imageFile);
     }
 
+    const preferredLocalStock =
+      normalizedLocalStocks.find((localStock) => localStock.localId === currentUser?.localId) ??
+      normalizedLocalStocks[0];
+
     const productData = {
       name: trimmedName,
       slug: generateSlug(trimmedName),
       price: parsedPrice,
       cost: parsedCost,
-      stock: parsedStock,
-      lowStockAlertThreshold: parsedLowStockAlertThreshold,
+      stock: preferredLocalStock?.stock ?? 0,
+      lowStockAlertThreshold: preferredLocalStock?.lowStockAlertThreshold ?? 5,
       category: trimmedCategory,
       saleType,
       stockUnit: normalizedStockUnit,
       imageUrl: nextImageUrl,
       description: trimmedDescription || undefined,
+      localStocks: normalizedLocalStocks,
       lastUpdated: Date.now(),
     };
 
@@ -229,40 +305,98 @@ export function ProductFormModal({
                 />
               </div>
 
-              <div>
-                <label htmlFor="stock" className="block text-sm font-medium text-slate-700">
-                  Stock ({stockUnit === "kg" ? "kg" : stockUnit === "liter" ? "litros" : "unidades"}){" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  id="stock"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  required
-                  min="0"
-                  step={stockUnit === "unit" ? "1" : "0.25"}
-                />
-              </div>
+              <div className="sm:col-span-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800">
+                        Stock por local
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Cada local maneja su propio stock y su propia alerta.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                      {stockUnit === "kg" ? "kg" : stockUnit === "liter" ? "litros" : "unidades"}
+                    </span>
+                  </div>
 
-              <div>
-                <label htmlFor="lowStockAlertThreshold" className="block text-sm font-medium text-slate-700">
-                  Alerta de stock bajo <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  id="lowStockAlertThreshold"
-                  value={lowStockAlertThreshold}
-                  onChange={(e) => setLowStockAlertThreshold(e.target.value)}
-                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  required
-                  min="0"
-                  step={stockUnit === "unit" ? "1" : "0.25"}
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Cuando llegue a este numero o menos, se marcara en rojo y tirara alerta.
-                </p>
+                  <div className="mt-4 space-y-3">
+                    {localStocks.length === 0 ? (
+                      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                        Primero crea al menos un local desde Usuarios para poder cargar stock.
+                      </p>
+                    ) : (
+                      localStocks.map((localStock) => (
+                        <div
+                          key={localStock.localId}
+                          className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_150px_170px]"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">{localStock.localName}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Ajusta el stock disponible y la alerta minima para este local.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`stock-${localStock.localId}`}
+                              className="block text-xs font-medium uppercase tracking-[0.14em] text-slate-500"
+                            >
+                              Stock
+                            </label>
+                            <input
+                              type="number"
+                              id={`stock-${localStock.localId}`}
+                              value={localStock.stock}
+                              onChange={(event) =>
+                                setLocalStocks((current) =>
+                                  current.map((candidate) =>
+                                    candidate.localId === localStock.localId
+                                      ? { ...candidate, stock: event.target.value }
+                                      : candidate,
+                                  ),
+                                )
+                              }
+                              className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                              required
+                              min="0"
+                              step={stockUnit === "unit" ? "1" : "0.25"}
+                            />
+                          </div>
+
+                          <div>
+                            <label
+                              htmlFor={`alert-${localStock.localId}`}
+                              className="block text-xs font-medium uppercase tracking-[0.14em] text-slate-500"
+                            >
+                              Alerta
+                            </label>
+                            <input
+                              type="number"
+                              id={`alert-${localStock.localId}`}
+                              value={localStock.lowStockAlertThreshold}
+                              onChange={(event) =>
+                                setLocalStocks((current) =>
+                                  current.map((candidate) =>
+                                    candidate.localId === localStock.localId
+                                      ? { ...candidate, lowStockAlertThreshold: event.target.value }
+                                      : candidate,
+                                  ),
+                                )
+                              }
+                              className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                              required
+                              min="0"
+                              step={stockUnit === "unit" ? "1" : "0.25"}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="sm:col-span-2">

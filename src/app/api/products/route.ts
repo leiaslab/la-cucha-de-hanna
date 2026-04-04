@@ -8,13 +8,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const auth = await requireAdminUser();
-  if (auth.response) {
+  if (auth.response || !auth.user) {
     return auth.response;
   }
 
   try {
     const payload = (await request.json()) as ProductInput;
-    const product = await createProduct(payload);
+    const product = await createProduct(payload, auth.user);
     return NextResponse.json({ data: product }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
@@ -29,13 +29,13 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   const auth = await requireAdminUser();
-  if (auth.response) {
+  if (auth.response || !auth.user) {
     return auth.response;
   }
 
   try {
     const body = (await request.json()) as { products?: ProductInput[] };
-    const products = await replaceProducts(body.products ?? []);
+    const products = await replaceProducts(body.products ?? [], auth.user);
     return NextResponse.json({ data: products });
   } catch (error) {
     return NextResponse.json(
