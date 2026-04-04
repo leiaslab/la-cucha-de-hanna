@@ -168,7 +168,18 @@ function mapProductRow(
     activeLocalId === undefined || activeLocalId === null
       ? undefined
       : localStocks.find((stockRow) => stockRow.localId === activeLocalId);
-  const projectedLocalStock = preferredLocalStock ?? (localStocks.length === 1 ? localStocks[0] : undefined);
+  const projectedLocalStock =
+    preferredLocalStock ??
+    (activeLocalId === undefined || activeLocalId === null
+      ? localStocks.length === 1
+        ? localStocks[0]
+        : undefined
+      : {
+          localId: activeLocalId,
+          localName: localNamesById?.get(activeLocalId)?.name,
+          stock: 0,
+          lowStockAlertThreshold: row.low_stock_alert_threshold,
+        });
 
   return {
     id: row.id,

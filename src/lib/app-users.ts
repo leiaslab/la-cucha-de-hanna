@@ -104,6 +104,29 @@ async function resolveLocaleIdByName(localeName: string) {
     throw new Error(createError.message);
   }
 
+  const { data: products, error: productsError } = await supabase
+    .from("productos")
+    .select("id, low_stock_alert_threshold");
+
+  if (productsError) {
+    throw new Error(productsError.message);
+  }
+
+  if ((products ?? []).length > 0) {
+    const { error: stockSeedError } = await supabase.from("productos_stock_local").insert(
+      (products ?? []).map((product) => ({
+        product_id: product.id,
+        local_id: created.id,
+        stock: 0,
+        low_stock_alert_threshold: product.low_stock_alert_threshold ?? 5,
+      })),
+    );
+
+    if (stockSeedError) {
+      throw new Error(stockSeedError.message);
+    }
+  }
+
   return created.id;
 }
 
