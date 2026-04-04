@@ -318,11 +318,20 @@ export default function Home() {
                     <p className="mt-1 truncate text-lg font-black text-slate-900 sm:text-xl">
                       {user?.fullName ?? user?.username ?? "Sin usuario"}
                     </p>
-                    {user?.localName && (
-                      <p className="mt-1 text-sm font-medium text-slate-500">
-                        {user.localName}
-                      </p>
-                    )}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {user?.localName && (
+                        <p className="text-sm font-medium text-slate-500">
+                          {user.localName}
+                        </p>
+                      )}
+                      <span
+                        className={`text-xs font-semibold ${
+                          isOffline ? "text-red-600" : "text-emerald-600"
+                        }`}
+                      >
+                        {isOffline ? "Offline" : "Online"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               }
