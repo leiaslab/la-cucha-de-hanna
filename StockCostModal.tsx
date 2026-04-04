@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "./db";
 import { formatPriceLabel, formatQuantity } from "./saleUtils";
+import { escapeReportHtml, openPrintWindow } from "./src/lib/report-print";
 
 interface StockCostModalProps {
   isOpen: boolean;
@@ -41,6 +42,57 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
 
   const estimatedMargin = totals.totalSale - totals.totalCost;
 
+  const handleExportPdf = () => {
+    const rows =
+      sortedProducts.length > 0
+        ? sortedProducts
+            .map((product) => {
+              const displayedStock = product.globalStock ?? product.stock;
+              const costValue = (product.cost ?? product.price ?? 0) * displayedStock;
+              const costLabel =
+                product.saleType === "weight"
+                  ? `$${(product.cost ?? product.price ?? 0).toLocaleString("es-AR")} / ${
+                      product.stockUnit === "liter" ? "l" : "kg"
+                    }`
+                  : `$${(product.cost ?? product.price ?? 0).toLocaleString("es-AR")}`;
+
+              return `
+                <tr>
+                  <td>${escapeReportHtml(product.name)}</td>
+                  <td>${escapeReportHtml(formatQuantity(displayedStock, product.stockUnit))}</td>
+                  <td class="right">${escapeReportHtml(costLabel)}</td>
+                  <td class="right">${escapeReportHtml(formatPriceLabel(product))}</td>
+                  <td class="right">$${Math.round(costValue).toLocaleString("es-AR")}</td>
+                </tr>
+              `;
+            })
+            .join("")
+        : `<tr><td colspan="5" class="center muted">No hay productos cargados.</td></tr>`;
+
+    openPrintWindow(
+      "Coste de stock",
+      `
+        <h1>Coste de stock</h1>
+        <p class="muted">Dinero invertido en el inventario actual.</p>
+
+        <div class="cards cards-3">
+          <div class="card"><div class="label">Coste total</div><div class="value">$${Math.round(totals.totalCost).toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Valor de venta</div><div class="value">$${Math.round(totals.totalSale).toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Margen estimado</div><div class="value">$${Math.round(estimatedMargin).toLocaleString("es-AR")}</div></div>
+        </div>
+
+        <section class="section">
+          <h2>Detalle de productos</h2>
+          <table>
+            <thead><tr><th>Producto</th><th>Cantidad</th><th class="right">Costo</th><th class="right">Precio venta</th><th class="right">Coste total</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </section>
+      `,
+      () => window.print(),
+    );
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -61,7 +113,7 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handleExportPdf}
                 className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
                 Imprimir

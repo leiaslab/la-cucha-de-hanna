@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, type PaymentMethod, type StockUnit } from "./db";
 import { getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { formatQuantity, getLineTotal } from "./saleUtils";
+import { escapeReportHtml, openPrintWindow } from "./src/lib/report-print";
 import { useAuth } from "./src/components/AuthGate";
 
 interface DailySalesModalProps {
@@ -292,6 +293,131 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     return days;
   }, [calendarSalesMap]);
 
+  const handleExportPdf = () => {
+    const cashierRows =
+      cashierSummary.length > 0
+        ? cashierSummary
+            .map(
+              (item) => `
+                <tr>
+                  <td>${escapeReportHtml(item.label)}</td>
+                  <td class="center">${item.orderCount}</td>
+                  <td class="right">$${item.total.toLocaleString("es-AR")}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="3" class="center muted">Sin ventas por cajero.</td></tr>`;
+
+    const localRows =
+      localSummary.length > 0
+        ? localSummary
+            .map(
+              (item) => `
+                <tr>
+                  <td>${escapeReportHtml(item.label)}</td>
+                  <td class="center">${item.orderCount}</td>
+                  <td class="right">$${item.total.toLocaleString("es-AR")}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="3" class="center muted">Sin ventas por local.</td></tr>`;
+
+    const selectedDayRows =
+      selectedDayOrders.length > 0
+        ? selectedDayOrders
+            .map(
+              (order) => `
+                <tr>
+                  <td>#${order.id}</td>
+                  <td>${new Date(order.createdAt).toLocaleTimeString("es-AR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}</td>
+                  <td>${escapeReportHtml(order.localName ?? "Sin local")}</td>
+                  <td>${escapeReportHtml(order.userFullName ?? order.userId?.toString() ?? "Sin usuario")}</td>
+                  <td>${escapeReportHtml(order.paymentMethod ? getPaymentMethodLabel(order.paymentMethod) : "Sin forma de pago")}</td>
+                  <td class="right">$${order.total.toLocaleString("es-AR")}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="6" class="center muted">No hubo ventas en la fecha seleccionada.</td></tr>`;
+
+    const productRows =
+      productSummary.length > 0
+        ? productSummary
+            .map(
+              (product) => `
+                <tr>
+                  <td>${escapeReportHtml(product.name)}</td>
+                  <td class="right">${escapeReportHtml(formatQuantity(product.quantity, product.stockUnit))}</td>
+                  <td class="right">$${product.total.toLocaleString("es-AR")}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="3" class="center muted">No hubo ventas este mes.</td></tr>`;
+
+    openPrintWindow(
+      "Resumen de ventas del mes",
+      `
+        <h1>Resumen de ventas del mes</h1>
+        <p class="muted">${escapeReportHtml(monthLabel)}</p>
+
+        <div class="cards cards-4">
+          <div class="card"><div class="label">Ventas totales</div><div class="value">$${totalSales.toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Pedidos realizados</div><div class="value">${totalOrders}</div></div>
+          <div class="card"><div class="label">Productos vendidos</div><div class="value">${productSummary.length}</div></div>
+          <div class="card"><div class="label">Promedio por venta</div><div class="value">$${(totalOrders > 0 ? Math.round(totalSales / totalOrders) : 0).toLocaleString("es-AR")}</div></div>
+        </div>
+
+        <div class="cards cards-3">
+          <div class="card"><div class="label">Efectivo</div><div class="value">$${paymentSummary.cash.toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Mercado Pago</div><div class="value">$${paymentSummary.mercado_pago.toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Transferencia</div><div class="value">$${paymentSummary.transfer.toLocaleString("es-AR")}</div></div>
+        </div>
+
+        <div class="sections sections-2">
+          <section class="section">
+            <h2>Ventas del mes por cajero</h2>
+            <table>
+              <thead><tr><th>Cajero</th><th class="center">Ventas</th><th class="right">Total</th></tr></thead>
+              <tbody>${cashierRows}</tbody>
+            </table>
+          </section>
+          <section class="section">
+            <h2>Ventas del mes por local</h2>
+            <table>
+              <thead><tr><th>Local</th><th class="center">Ventas</th><th class="right">Total</th></tr></thead>
+              <tbody>${localRows}</tbody>
+            </table>
+          </section>
+        </div>
+
+        <div class="sections sections-2">
+          <section class="section">
+            <h2>Detalle de la fecha seleccionada</h2>
+            <p class="muted" style="margin-bottom: 10px;">${escapeReportHtml(selectedDayLabel)}</p>
+            <table>
+              <thead><tr><th>ID</th><th>Hora</th><th>Local</th><th>Cajero</th><th>Pago</th><th class="right">Total</th></tr></thead>
+              <tbody>${selectedDayRows}</tbody>
+            </table>
+          </section>
+          <section class="section">
+            <h2>Resumen por productos</h2>
+            <table>
+              <thead><tr><th>Producto</th><th class="right">Cantidad</th><th class="right">Total</th></tr></thead>
+              <tbody>${productRows}</tbody>
+            </table>
+          </section>
+        </div>
+      `,
+      () => window.print(),
+    );
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -311,7 +437,8 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => window.print()}
+                type="button"
+                onClick={handleExportPdf}
                 className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
                 Exportar PDF

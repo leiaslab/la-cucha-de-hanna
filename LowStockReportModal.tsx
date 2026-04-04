@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "./db";
 import { formatPriceLabel, formatQuantity } from "./saleUtils";
+import { escapeReportHtml, openPrintWindow } from "./src/lib/report-print";
 
 interface LowStockReportModalProps {
   isOpen: boolean;
@@ -45,6 +46,49 @@ export function LowStockReportModal({ isOpen, onClose }: LowStockReportModalProp
     [sortedProducts],
   );
 
+  const handleExportPdf = () => {
+    const rows =
+      sortedProducts.length > 0
+        ? sortedProducts
+            .map((product) => {
+              const displayedStock = product.globalStock ?? product.stock;
+              return `
+                <tr>
+                  <td>${escapeReportHtml(product.name)}</td>
+                  <td>${escapeReportHtml(product.category)}</td>
+                  <td class="center">${escapeReportHtml(formatQuantity(displayedStock, product.stockUnit))}</td>
+                  <td class="right">${escapeReportHtml(formatPriceLabel(product))}</td>
+                  <td class="right">$${Math.round(product.price * displayedStock).toLocaleString("es-AR")}</td>
+                </tr>
+              `;
+            })
+            .join("")
+        : `<tr><td colspan="5" class="center muted">No hay productos cargados.</td></tr>`;
+
+    openPrintWindow(
+      "Reporte de stock",
+      `
+        <h1>Reporte de stock</h1>
+        <p class="muted">Inventario actual segun los productos cargados.</p>
+
+        <div class="cards cards-3">
+          <div class="card"><div class="label">Productos cargados</div><div class="value">${sortedProducts.length}</div></div>
+          <div class="card"><div class="label">Stock bajo</div><div class="value">${lowStockCount}</div></div>
+          <div class="card"><div class="label">Valor total de venta</div><div class="value">$${Math.round(totalInventoryValue).toLocaleString("es-AR")}</div></div>
+        </div>
+
+        <section class="section">
+          <h2>Detalle de productos</h2>
+          <table>
+            <thead><tr><th>Producto</th><th>Categoria</th><th class="center">Cantidad</th><th class="right">Precio</th><th class="right">Valor stock</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </section>
+      `,
+      () => window.print(),
+    );
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -65,7 +109,7 @@ export function LowStockReportModal({ isOpen, onClose }: LowStockReportModalProp
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handleExportPdf}
                 className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               >
                 Imprimir

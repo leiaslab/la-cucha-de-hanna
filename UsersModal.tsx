@@ -34,12 +34,14 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingUserId, setIsDeletingUserId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const resetForm = () => {
     setEditingUser(null);
     setForm(initialFormState);
     setIsActive(true);
     setError(null);
+    setShowPassword(false);
   };
 
   const loadUsers = async () => {
@@ -78,6 +80,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
       role: user.role,
     });
     setIsActive(user.isActive);
+    setShowPassword(false);
     setError(null);
   };
 
@@ -345,13 +348,22 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                   {editingUser ? "Nueva clave (opcional)" : "Clave"}
                 </label>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  required={!editingUser}
-                />
+                <div className="mt-1 flex gap-2">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                    className="block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    required={!editingUser}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="shrink-0 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    {showPassword ? "Ocultar" : "Ver"}
+                  </button>
+                </div>
               </div>
 
               <div>
