@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type PaymentMethod, type StockUnit } from "./db";
 import { formatQuantity, getLineTotal } from "./saleUtils";
+import { useAuth } from "./src/components/AuthGate";
 
 interface DailySalesModalProps {
   isOpen: boolean;
@@ -17,7 +18,14 @@ type ProductSummary = {
   stockUnit: StockUnit;
 };
 
+type EntitySummary = {
+  label: string;
+  orderCount: number;
+  total: number;
+};
+
 export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
+  const { user } = useAuth();
   const monthOrders = useLiveQuery(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -88,6 +96,42 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     });
 
     return Array.from(stats.values()).sort((a, b) => b.total - a.total);
+  }, [monthOrders]);
+
+  const cashierSummary = useMemo(() => {
+    if (!monthOrders) {
+      return [] as EntitySummary[];
+    }
+
+    const summary = new Map<string, EntitySummary>();
+
+    monthOrders.forEach((order) => {
+      const label = order.userFullName ?? order.userId?.toString() ?? "Sin usuario";
+      const current = summary.get(label) ?? { label, orderCount: 0, total: 0 };
+      current.orderCount += 1;
+      current.total += order.total;
+      summary.set(label, current);
+    });
+
+    return Array.from(summary.values()).sort((a, b) => b.total - a.total);
+  }, [monthOrders]);
+
+  const localSummary = useMemo(() => {
+    if (!monthOrders) {
+      return [] as EntitySummary[];
+    }
+
+    const summary = new Map<string, EntitySummary>();
+
+    monthOrders.forEach((order) => {
+      const label = order.localName ?? "Sin local";
+      const current = summary.get(label) ?? { label, orderCount: 0, total: 0 };
+      current.orderCount += 1;
+      current.total += order.total;
+      summary.set(label, current);
+    });
+
+    return Array.from(summary.values()).sort((a, b) => b.total - a.total);
   }, [monthOrders]);
 
   if (!isOpen) {
@@ -185,6 +229,70 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
               </p>
             </div>
           </div>
+
+          {user?.role === "admin" && (
+            <div className="mb-6 grid gap-6 xl:grid-cols-2">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Ventas del mes por cajero
+                </h3>
+                <div className="space-y-3">
+                  {cashierSummary.length === 0 ? (
+                    <p className="text-sm italic text-slate-500 dark:text-slate-400">
+                      Todavia no hay ventas para mostrar.
+                    </p>
+                  ) : (
+                    cashierSummary.map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50"
+                      >
+                        <div>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{item.label}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {item.orderCount} venta{item.orderCount === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        <p className="text-lg font-black text-blue-600 dark:text-blue-400">
+                          ${item.total.toLocaleString("es-AR")}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Ventas del mes por local
+                </h3>
+                <div className="space-y-3">
+                  {localSummary.length === 0 ? (
+                    <p className="text-sm italic text-slate-500 dark:text-slate-400">
+                      Todavia no hay ventas para mostrar.
+                    </p>
+                  ) : (
+                    localSummary.map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50"
+                      >
+                        <div>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{item.label}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {item.orderCount} venta{item.orderCount === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        <p className="text-lg font-black text-blue-600 dark:text-blue-400">
+                          ${item.total.toLocaleString("es-AR")}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
 
           <div className="grid flex-1 gap-6 overflow-hidden">
             <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">

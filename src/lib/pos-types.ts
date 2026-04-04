@@ -4,6 +4,13 @@ export type PaymentMethod = "cash" | "mercado_pago" | "transfer";
 export type ShiftStatus = "open" | "closed";
 export type AppRole = "admin" | "cajero";
 
+export interface LocalRecord {
+  id: number;
+  name: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export interface Product {
   id?: number;
   name: string;
@@ -44,6 +51,9 @@ export interface Order {
   shiftId?: number;
   clientId?: number;
   userId?: number;
+  localId?: number;
+  userFullName?: string;
+  localName?: string;
 }
 
 export interface Shift {
@@ -62,6 +72,8 @@ export interface Shift {
   expectedCash?: number;
   openedByUserId?: number;
   closedByUserId?: number;
+  localId?: number;
+  localName?: string;
 }
 
 export interface SessionUser {
@@ -69,6 +81,8 @@ export interface SessionUser {
   username: string;
   fullName: string;
   role: AppRole;
+  localId?: number | null;
+  localName?: string;
   source: "database" | "fallback";
 }
 
@@ -78,6 +92,8 @@ export interface AppUser {
   username: string;
   role: AppRole;
   isActive: boolean;
+  localeId?: number;
+  localeName?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -87,6 +103,7 @@ export interface AppUserInput {
   username: string;
   password: string;
   role: AppRole;
+  localeName: string;
 }
 
 export interface AppUserUpdateInput {
@@ -95,6 +112,7 @@ export interface AppUserUpdateInput {
   password?: string;
   role?: AppRole;
   isActive?: boolean;
+  localeName?: string;
 }
 
 export interface ClientRecord {

@@ -12,12 +12,15 @@ type AppUserRow = {
   password_hash: string;
   role: AppRole;
   is_active: boolean;
+  locale_id: number | null;
   created_at: string;
   updated_at: string;
+  locales?: { name: string } | { name: string }[] | null;
 };
 
 const USERS_TABLE = "app_users";
-const PUBLIC_USER_COLUMNS = "id,full_name,username,role,is_active,created_at,updated_at";
+const PUBLIC_USER_COLUMNS =
+  "id,full_name,username,role,is_active,locale_id,created_at,updated_at,locales(name)";
 
 export class MissingAppUsersTableError extends Error {
   constructor() {
@@ -28,31 +31,80 @@ export class MissingAppUsersTableError extends Error {
 function isMissingTableError(error: { code?: string; message?: string } | null | undefined) {
   return (
     error?.code === "42P01" ||
-    (error?.message?.toLowerCase().includes("app_users") &&
+    ((error?.message?.toLowerCase().includes("app_users") ||
+      error?.message?.toLowerCase().includes("locales")) &&
       error.message.toLowerCase().includes("does not exist"))
   );
 }
 
 function mapAppUser(row: AppUserRow): AppUser {
+  const locale = Array.isArray(row.locales) ? row.locales[0] : row.locales;
+
   return {
     id: row.id,
     fullName: row.full_name,
     username: row.username,
     role: row.role,
     isActive: row.is_active,
+    localeId: row.locale_id ?? undefined,
+    localeName: locale?.name ?? undefined,
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
   };
 }
 
 function mapSessionUser(row: AppUserRow): SessionUser {
+  const locale = Array.isArray(row.locales) ? row.locales[0] : row.locales;
+
   return {
     id: row.id,
     username: row.username,
     fullName: row.full_name,
     role: row.role,
+    localId: row.locale_id,
+    localName: locale?.name ?? undefined,
     source: "database",
   };
+}
+
+async function resolveLocaleIdByName(localeName: string) {
+  const supabase = createServiceRoleSupabaseClient();
+  const normalizedName = localeName.trim();
+
+  if (!normalizedName) {
+    throw new Error("Debes indicar un local.");
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("locales")
+    .select("id,name")
+    .ilike("name", normalizedName)
+    .limit(1)
+    .maybeSingle<{ id: number; name: string }>();
+
+  if (existingError) {
+    if (isMissingTableError(existingError)) {
+      throw new MissingAppUsersTableError();
+    }
+
+    throw new Error(existingError.message);
+  }
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const { data: created, error: createError } = await supabase
+    .from("locales")
+    .insert({ name: normalizedName })
+    .select("id")
+    .single<{ id: number }>();
+
+  if (createError) {
+    throw new Error(createError.message);
+  }
+
+  return created.id;
 }
 
 export async function authenticateAppUser(username: string, password: string) {
@@ -60,7 +112,7 @@ export async function authenticateAppUser(username: string, password: string) {
   const normalizedUsername = normalizeUsername(username);
   const { data, error } = await supabase
     .from(USERS_TABLE)
-    .select("id,full_name,username,password_hash,role,is_active,created_at,updated_at")
+    .select("id,full_name,username,password_hash,role,is_active,locale_id,created_at,updated_at,locales(name)")
     .eq("username", normalizedUsername)
     .maybeSingle<AppUserRow>();
 
@@ -99,11 +151,13 @@ export async function listAppUsers() {
 
 export async function createAppUser(input: AppUserInput) {
   const supabase = createServiceRoleSupabaseClient();
+  const localeId = await resolveLocaleIdByName(input.localeName);
   const payload = {
     full_name: input.fullName.trim(),
     username: normalizeUsername(input.username),
     password_hash: hashPassword(input.password.trim()),
     role: input.role,
+    locale_id: localeId,
   };
 
   const { data, error } = await supabase
@@ -125,7 +179,7 @@ export async function createAppUser(input: AppUserInput) {
 
 export async function updateAppUser(userId: number, input: AppUserUpdateInput) {
   const supabase = createServiceRoleSupabaseClient();
-  const payload: Record<string, string | boolean> = {};
+  const payload: Record<string, string | boolean | number> = {};
 
   if (input.fullName !== undefined) {
     payload.full_name = input.fullName.trim();
@@ -141,6 +195,10 @@ export async function updateAppUser(userId: number, input: AppUserUpdateInput) {
 
   if (input.isActive !== undefined) {
     payload.is_active = input.isActive;
+  }
+
+  if (input.localeName !== undefined) {
+    payload.locale_id = await resolveLocaleIdByName(input.localeName);
   }
 
   if (input.password && input.password.trim()) {

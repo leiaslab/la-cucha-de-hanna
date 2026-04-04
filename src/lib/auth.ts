@@ -25,6 +25,8 @@ export function getFallbackAdminUser() {
     username: credentials.username,
     fullName: FALLBACK_FULL_NAME,
     role: "admin" as const,
+    localId: null,
+    localName: "General",
     source: "fallback" as const,
   };
 }

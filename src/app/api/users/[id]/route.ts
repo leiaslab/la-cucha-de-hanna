@@ -31,6 +31,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
     const body = (await request.json()) as {
       fullName?: string;
       isActive?: boolean;
+      localeName?: string;
       password?: string;
       role?: string;
       username?: string;
@@ -51,6 +52,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
     const updated = await updateAppUser(userId, {
       fullName: body.fullName,
       isActive: body.isActive,
+      localeName: body.localeName,
       password: body.password,
       role: body.role,
       username: body.username,

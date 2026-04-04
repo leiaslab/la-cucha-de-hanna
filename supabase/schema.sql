@@ -24,12 +24,20 @@ create table if not exists public.productos (
   last_updated timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.locales (
+  id bigserial primary key,
+  name text not null unique,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create table if not exists public.app_users (
   id bigserial primary key,
   full_name text not null,
   username text not null unique,
   password_hash text not null,
   role text not null check (role in ('admin', 'cajero')),
+  locale_id bigint references public.locales(id) on delete set null,
   is_active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -40,6 +48,7 @@ create table if not exists public.arqueos (
   status text not null check (status in ('open', 'closed')),
   opened_at timestamptz not null default timezone('utc', now()),
   opened_by_user_id bigint references public.app_users(id) on delete set null,
+  local_id bigint references public.locales(id) on delete set null,
   opening_cash double precision not null default 0,
   opening_note text,
   closed_at timestamptz,
@@ -57,6 +66,7 @@ create table if not exists public.ventas (
   id bigserial primary key,
   client_id bigint references public.clientes(id) on delete set null,
   user_id bigint references public.app_users(id) on delete set null,
+  local_id bigint references public.locales(id) on delete set null,
   total double precision not null,
   status text not null default 'synced' check (status in ('pending', 'synced')),
   created_at timestamptz not null default timezone('utc', now()),
@@ -73,6 +83,15 @@ alter table public.arqueos
 
 alter table public.ventas
   add column if not exists user_id bigint references public.app_users(id) on delete set null;
+
+alter table public.app_users
+  add column if not exists locale_id bigint references public.locales(id) on delete set null;
+
+alter table public.arqueos
+  add column if not exists local_id bigint references public.locales(id) on delete set null;
+
+alter table public.ventas
+  add column if not exists local_id bigint references public.locales(id) on delete set null;
 
 create table if not exists public.detalle_ventas (
   id bigserial primary key,
@@ -131,6 +150,12 @@ before update on public.app_users
 for each row
 execute function public.touch_updated_at();
 
+drop trigger if exists locales_touch_updated_at on public.locales;
+create trigger locales_touch_updated_at
+before update on public.locales
+for each row
+execute function public.touch_updated_at();
+
 create or replace function public.create_sale(p_payload jsonb)
 returns bigint
 language plpgsql
@@ -144,11 +169,12 @@ declare
   v_quantity double precision;
   v_payment_method text;
   v_user_id bigint;
+  v_local_id bigint;
 begin
   v_user_id := nullif((p_payload ->> 'user_id')::bigint, 0);
 
-  select id
-  into v_shift_id
+  select id, local_id
+  into v_shift_id, v_local_id
   from public.arqueos
   where status = 'open'
     and (
@@ -165,6 +191,7 @@ begin
   insert into public.ventas (
     client_id,
     user_id,
+    local_id,
     total,
     status,
     notes,
@@ -174,6 +201,7 @@ begin
   values (
     nullif((p_payload ->> 'client_id')::bigint, 0),
     v_user_id,
+    v_local_id,
     coalesce((p_payload ->> 'total')::double precision, 0),
     'synced',
     nullif(p_payload ->> 'notes', ''),
@@ -261,6 +289,7 @@ security definer
 as $$
 declare
   v_shift_id bigint;
+  v_local_id bigint;
 begin
   if exists (
     select 1
@@ -274,15 +303,24 @@ begin
     raise exception 'Ya existe un turno abierto para este usuario.';
   end if;
 
+  if p_user_id is not null then
+    select locale_id
+    into v_local_id
+    from public.app_users
+    where id = p_user_id;
+  end if;
+
   insert into public.arqueos (
     status,
     opened_by_user_id,
+    local_id,
     opening_cash,
     opening_note
   )
   values (
     'open',
     p_user_id,
+    v_local_id,
     coalesce(p_opening_cash, 0),
     nullif(p_opening_note, '')
   )

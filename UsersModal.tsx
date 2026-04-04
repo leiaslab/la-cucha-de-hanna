@@ -18,6 +18,7 @@ interface UsersModalProps {
 
 const initialFormState = {
   fullName: "",
+  localeName: "",
   username: "",
   password: "",
   role: "cajero" as AppRole,
@@ -70,6 +71,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
     setEditingUser(user);
     setForm({
       fullName: user.fullName,
+      localeName: user.localeName ?? "",
       username: user.username,
       password: "",
       role: user.role,
@@ -92,6 +94,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
       if (editingUser) {
         await updateAppUserRemote(editingUser.id, {
           fullName: form.fullName,
+          localeName: form.localeName,
           username: form.username,
           password: form.password.trim() || undefined,
           role: form.role,
@@ -102,6 +105,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
       } else {
         await createAppUserRemote({
           fullName: form.fullName,
+          localeName: form.localeName,
           username: form.username,
           password: form.password,
           role: form.role,
@@ -216,6 +220,9 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                           <p className="text-sm text-slate-500 dark:text-slate-400">
                             @{user.username}
                           </p>
+                          <p className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                            {user.localeName ?? "Sin local"}
+                          </p>
                         </div>
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] ${
@@ -300,6 +307,20 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                   value={form.fullName}
                   onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Local
+                </label>
+                <input
+                  type="text"
+                  value={form.localeName}
+                  onChange={(event) => setForm((current) => ({ ...current, localeName: event.target.value }))}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="Ej: Local Centro"
                   required
                 />
               </div>

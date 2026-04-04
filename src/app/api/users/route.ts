@@ -54,18 +54,20 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       fullName?: string;
+      localeName?: string;
       password?: string;
       role?: string;
       username?: string;
     };
 
     const fullName = body.fullName?.trim() ?? "";
+    const localeName = body.localeName?.trim() ?? "";
     const username = body.username?.trim() ?? "";
     const password = body.password?.trim() ?? "";
     const role = body.role ?? "";
 
-    if (!fullName || !username || !password) {
-      return NextResponse.json({ error: "Completa nombre, usuario y clave." }, { status: 400 });
+    if (!fullName || !username || !password || !localeName) {
+      return NextResponse.json({ error: "Completa nombre, local, usuario y clave." }, { status: 400 });
     }
 
     if (password.length < 4) {
@@ -78,6 +80,7 @@ export async function POST(request: Request) {
 
     const created = await createAppUser({
       fullName,
+      localeName,
       username,
       password,
       role,

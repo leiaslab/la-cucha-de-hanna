@@ -59,6 +59,7 @@ type SaleRow = {
   shift_id: number | null;
   client_id: number | null;
   user_id: number | null;
+  local_id: number | null;
   detalle_ventas?: SaleDetailRow[] | null;
 };
 
@@ -68,6 +69,7 @@ type ShiftRow = {
   opened_at: string;
   opening_cash: number;
   opened_by_user_id: number | null;
+  local_id: number | null;
   opening_note: string | null;
   closed_at: string | null;
   closed_by_user_id: number | null;
@@ -101,6 +103,19 @@ type PdfRow = {
   created_at: string;
 };
 
+type AppUserReferenceRow = {
+  id: number;
+  full_name: string;
+  locale_id: number | null;
+};
+
+type LocalRow = {
+  id: number;
+  name: string;
+  created_at: string;
+  updated_at: string;
+};
+
 function toMillis(value: string | null | undefined) {
   return value ? new Date(value).getTime() : undefined;
 }
@@ -123,7 +138,14 @@ function mapProductRow(row: ProductRow): Product {
   };
 }
 
-function mapOrderRow(row: SaleRow): Order {
+function mapOrderRow(
+  row: SaleRow,
+  userNamesById?: Map<number, AppUserReferenceRow>,
+  localNamesById?: Map<number, LocalRow>,
+): Order {
+  const userReference = row.user_id ? userNamesById?.get(row.user_id) : undefined;
+  const localReference = row.local_id ? localNamesById?.get(row.local_id) : undefined;
+
   return {
     id: row.id,
     items: (row.detalle_ventas ?? []).map((item) => ({
@@ -145,15 +167,22 @@ function mapOrderRow(row: SaleRow): Order {
     shiftId: row.shift_id ?? undefined,
     clientId: row.client_id ?? undefined,
     userId: row.user_id ?? undefined,
+    localId: row.local_id ?? undefined,
+    userFullName: userReference?.full_name ?? undefined,
+    localName: localReference?.name ?? undefined,
   };
 }
 
-function mapShiftRow(row: ShiftRow): Shift {
+function mapShiftRow(row: ShiftRow, localNamesById?: Map<number, LocalRow>): Shift {
+  const localReference = row.local_id ? localNamesById?.get(row.local_id) : undefined;
+
   return {
     id: row.id,
     status: row.status,
     openedAt: toMillis(row.opened_at) ?? Date.now(),
     openedByUserId: row.opened_by_user_id ?? undefined,
+    localId: row.local_id ?? undefined,
+    localName: localReference?.name ?? undefined,
     openingCash: row.opening_cash,
     openingNote: row.opening_note ?? undefined,
     closedAt: toMillis(row.closed_at),
@@ -178,6 +207,14 @@ function mapClientRow(row: ClientRow): ClientRecord {
     createdAt: toMillis(row.created_at),
     updatedAt: toMillis(row.updated_at),
   };
+}
+
+function createUserReferenceMap(rows: AppUserReferenceRow[]) {
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
+function createLocalMap(rows: LocalRow[]) {
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 function mapPdfRow(row: PdfRow): PdfRecord {
@@ -235,12 +272,28 @@ async function getOrderById(orderId: number) {
   const row = await expectSingle(
     supabase
       .from("ventas")
-      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,detalle_ventas(*)")
+      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,local_id,detalle_ventas(*)")
       .eq("id", orderId)
       .single(),
   );
 
-  return mapOrderRow(row as SaleRow);
+  const saleRow = row as SaleRow;
+  const [userRows, localRows] = await Promise.all([
+    saleRow.user_id
+      ? expectMany(
+          supabase.from("app_users").select("id,full_name,locale_id").eq("id", saleRow.user_id),
+        )
+      : Promise.resolve([] as AppUserReferenceRow[]),
+    saleRow.local_id
+      ? expectMany(supabase.from("locales").select("*").eq("id", saleRow.local_id))
+      : Promise.resolve([] as LocalRow[]),
+  ]);
+
+  return mapOrderRow(
+    saleRow,
+    createUserReferenceMap(userRows as AppUserReferenceRow[]),
+    createLocalMap(localRows as LocalRow[]),
+  );
 }
 
 async function getShiftById(shiftId: number) {
@@ -254,7 +307,13 @@ async function getShiftById(shiftId: number) {
       .single(),
   );
 
-  return mapShiftRow(row as ShiftRow);
+  const shiftRow = row as ShiftRow;
+  const localRows =
+    shiftRow.local_id
+      ? await expectMany(supabase.from("locales").select("*").eq("id", shiftRow.local_id))
+      : [];
+
+  return mapShiftRow(shiftRow, createLocalMap(localRows as LocalRow[]));
 }
 
 export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<RemoteSnapshot> {
@@ -263,7 +322,7 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
   const userId = sessionUser.id ?? null;
   const salesQuery = supabase
     .from("ventas")
-    .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,detalle_ventas(*)")
+    .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,local_id,detalle_ventas(*)")
     .order("created_at", { ascending: false });
   const shiftsQuery = supabase.from("arqueos").select("*").order("opened_at", { ascending: false });
 
@@ -272,18 +331,23 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
     shiftsQuery.eq("opened_by_user_id", userId);
   }
 
-  const [products, sales, shifts, clients, pdfs] = await Promise.all([
+  const [products, sales, shifts, clients, pdfs, userRows, localRows] = await Promise.all([
     expectMany(supabase.from("productos").select("*").order("name")),
     expectMany(salesQuery),
     expectMany(shiftsQuery),
     expectMany(supabase.from("clientes").select("*").order("full_name")),
     expectMany(supabase.from("pdfs").select("*").order("created_at", { ascending: false })),
+    expectMany(supabase.from("app_users").select("id,full_name,locale_id")),
+    expectMany(supabase.from("locales").select("*").order("name")),
   ]);
+
+  const userNamesById = createUserReferenceMap(userRows as AppUserReferenceRow[]);
+  const localNamesById = createLocalMap(localRows as LocalRow[]);
 
   return {
     products: (products as ProductRow[]).map(mapProductRow),
-    orders: (sales as SaleRow[]).map(mapOrderRow),
-    shifts: (shifts as ShiftRow[]).map(mapShiftRow),
+    orders: (sales as SaleRow[]).map((row) => mapOrderRow(row, userNamesById, localNamesById)),
+    shifts: (shifts as ShiftRow[]).map((row) => mapShiftRow(row, localNamesById)),
     clients: (clients as ClientRow[]).map(mapClientRow),
     pdfs: (pdfs as PdfRow[]).map(mapPdfRow),
   };
@@ -455,11 +519,21 @@ export async function generateShiftPdf(shiftId: number): Promise<PdfGenerationRe
   const saleRows = await expectMany(
     supabase
       .from("ventas")
-      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,detalle_ventas(*)")
+      .select("id,total,status,created_at,notes,payment_method,shift_id,client_id,user_id,local_id,detalle_ventas(*)")
       .eq("shift_id", shiftId)
       .order("created_at", { ascending: false }),
   );
-  const orders = (saleRows as SaleRow[]).map(mapOrderRow);
+  const [userRows, localRows] = await Promise.all([
+    expectMany(supabase.from("app_users").select("id,full_name,locale_id")),
+    expectMany(supabase.from("locales").select("*").order("name")),
+  ]);
+  const orders = (saleRows as SaleRow[]).map((row) =>
+    mapOrderRow(
+      row,
+      createUserReferenceMap(userRows as AppUserReferenceRow[]),
+      createLocalMap(localRows as LocalRow[]),
+    ),
+  );
   const fileName = `arqueo-${shift.id}-${new Date(shift.openedAt).toISOString().slice(0, 10)}.pdf`;
   const pdfBytes = await renderShiftPdf({ shift, orders });
   const uploaded = await uploadPdfToDrive({ fileName, buffer: pdfBytes });
