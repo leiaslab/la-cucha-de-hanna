@@ -25,6 +25,16 @@ type EntitySummary = {
   total: number;
 };
 
+type LiveSaleSummary = {
+  id?: number;
+  total: number;
+  createdAt: number;
+  paymentMethod?: PaymentMethod;
+  userLabel: string;
+  localLabel: string;
+  itemCount: number;
+};
+
 export function TodaySalesModal({ isOpen, onClose }: TodaySalesModalProps) {
   const { user } = useAuth();
   const todayOrders = useLiveQuery(() => {
@@ -137,6 +147,25 @@ export function TodaySalesModal({ isOpen, onClose }: TodaySalesModalProps) {
     return Array.from(summary.values()).sort((a, b) => b.total - a.total);
   }, [todayOrders]);
 
+  const liveSales = useMemo(() => {
+    if (!todayOrders) {
+      return [] as LiveSaleSummary[];
+    }
+
+    return todayOrders
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((order) => ({
+        id: order.id,
+        total: order.total,
+        createdAt: order.createdAt,
+        paymentMethod: order.paymentMethod,
+        userLabel: order.userFullName ?? order.userId?.toString() ?? "Sin usuario",
+        localLabel: order.localName ?? "Sin local",
+        itemCount: order.items.length,
+      }));
+  }, [todayOrders]);
+
   if (!isOpen) {
     return null;
   }
@@ -245,7 +274,7 @@ export function TodaySalesModal({ isOpen, onClose }: TodaySalesModalProps) {
           </div>
 
           {user?.role === "admin" && (
-            <div className="mb-6 grid gap-6 xl:grid-cols-2">
+            <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
               <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
                   Ventas por cajero
@@ -300,6 +329,52 @@ export function TodaySalesModal({ isOpen, onClose }: TodaySalesModalProps) {
                         <p className="text-lg font-black text-blue-600 dark:text-blue-400">
                           ${item.total.toLocaleString("es-AR")}
                         </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Ventas en vivo
+                </h3>
+                <div className="space-y-3">
+                  {liveSales.length === 0 ? (
+                    <p className="text-sm italic text-slate-500 dark:text-slate-400">
+                      Todavia no hay ventas para mostrar.
+                    </p>
+                  ) : (
+                    liveSales.slice(0, 8).map((sale) => (
+                      <div
+                        key={`${sale.id}-${sale.createdAt}`}
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/50"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                              {sale.localLabel}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {sale.userLabel}
+                            </p>
+                          </div>
+                          <p className="text-base font-black text-blue-600 dark:text-blue-400">
+                            ${sale.total.toLocaleString("es-AR")}
+                          </p>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                          <span>
+                            {new Date(sale.createdAt).toLocaleTimeString("es-AR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span>{sale.itemCount} item{sale.itemCount === 1 ? "" : "s"}</span>
+                          <span>
+                            {sale.paymentMethod ? getPaymentMethodLabel(sale.paymentMethod) : "Sin forma de pago"}
+                          </span>
+                        </div>
                       </div>
                     ))
                   )}
