@@ -164,3 +164,16 @@ export async function updateAppUser(userId: number, input: AppUserUpdateInput) {
 
   return mapAppUser(data);
 }
+
+export async function deleteAppUser(userId: number) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { error } = await supabase.from(USERS_TABLE).delete().eq("id", userId);
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      throw new MissingAppUsersTableError();
+    }
+
+    throw new Error(error.message);
+  }
+}

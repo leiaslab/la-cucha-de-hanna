@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { AppRole, AppUser } from "./db";
-import { createAppUserRemote, listAppUsersRemote, updateAppUserRemote } from "./src/lib/api-client";
+import {
+  createAppUserRemote,
+  deleteAppUserRemote,
+  listAppUsersRemote,
+  updateAppUserRemote,
+} from "./src/lib/api-client";
 import { showToast } from "./Toast";
 
 interface UsersModalProps {
@@ -25,6 +30,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   const [isActive, setIsActive] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingUserId, setIsDeletingUserId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
@@ -70,6 +76,11 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
     });
     setIsActive(user.isActive);
     setError(null);
+  };
+
+  const handleResetPassword = (user: AppUser) => {
+    handleEdit(user);
+    showToast("Escribe una nueva clave y guarda para resetearla.", "success");
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -124,6 +135,33 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
       showToast(`Usuario ${updated.isActive ? "activado" : "desactivado"} con exito.`, "success");
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "No se pudo actualizar el estado.");
+    }
+  };
+
+  const handleDelete = async (user: AppUser) => {
+    if (currentUsername && user.username === currentUsername) {
+      showToast("No puedes borrar tu propio usuario.", "error");
+      return;
+    }
+
+    if (!confirm(`Se borrara el usuario "${user.username}". Esta accion no se puede deshacer.`)) {
+      return;
+    }
+
+    setError(null);
+    setIsDeletingUserId(user.id);
+
+    try {
+      await deleteAppUserRemote(user.id);
+      setUsers((current) => current.filter((candidate) => candidate.id !== user.id));
+      if (editingUser?.id === user.id) {
+        resetForm();
+      }
+      showToast("Usuario borrado con exito.", "success");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "No se pudo borrar el usuario.");
+    } finally {
+      setIsDeletingUserId(null);
     }
   };
 
@@ -209,10 +247,25 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleResetPassword(user)}
+                            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
+                          >
+                            Resetear clave
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => void handleToggleActive(user)}
                             className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                           >
                             {user.isActive ? "Desactivar" : "Activar"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(user)}
+                            disabled={isDeletingUserId === user.id}
+                            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                          >
+                            {isDeletingUserId === user.id ? "Borrando..." : "Borrar"}
                           </button>
                         </div>
                       </div>
@@ -232,6 +285,10 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                 ? "Actualiza nombre, rol, estado o cambia la clave si hace falta."
                 : "Crea un acceso nuevo para otro local o computadora."}
             </p>
+
+            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+              Para cambiar o recuperar una clave: entra en editar o usa resetear clave, escribe una nueva y guarda.
+            </div>
 
             <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
               <div>

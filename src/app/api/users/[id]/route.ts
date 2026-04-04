@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MissingAppUsersTableError, updateAppUser } from "../../../../lib/app-users";
+import { deleteAppUser, MissingAppUsersTableError, updateAppUser } from "../../../../lib/app-users";
 import { getCurrentSessionUser } from "../../../../lib/auth-server";
 import type { AppRole } from "../../../../lib/pos-types";
 
@@ -64,6 +64,42 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
         : error instanceof Error
           ? error.message
           : "No se pudo actualizar el usuario.";
+
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function DELETE(_request: Request, context: RouteContext<"/api/users/[id]">) {
+  const sessionUser = await getCurrentSessionUser();
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Debes iniciar sesion." }, { status: 401 });
+  }
+
+  if (sessionUser.role !== "admin") {
+    return NextResponse.json({ error: "Solo el admin puede gestionar usuarios." }, { status: 403 });
+  }
+
+  try {
+    const params = await context.params;
+    const userId = Number(params.id);
+
+    if (!Number.isFinite(userId)) {
+      return NextResponse.json({ error: "Usuario invalido." }, { status: 400 });
+    }
+
+    if (sessionUser.id === userId) {
+      return NextResponse.json({ error: "No puedes borrar tu propio usuario." }, { status: 400 });
+    }
+
+    await deleteAppUser(userId);
+    return NextResponse.json({ data: { success: true } });
+  } catch (error) {
+    const message =
+      error instanceof MissingAppUsersTableError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "No se pudo borrar el usuario.";
 
     return NextResponse.json({ error: message }, { status: 400 });
   }

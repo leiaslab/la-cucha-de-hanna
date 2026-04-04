@@ -209,3 +209,9 @@ export async function updateAppUserRemote(userId: number, payload: AppUserUpdate
     body: JSON.stringify(payload),
   });
 }
+
+export async function deleteAppUserRemote(userId: number) {
+  return apiFetch<{ success: true }>(`/api/users/${userId}`, {
+    method: "DELETE",
+  });
+}
