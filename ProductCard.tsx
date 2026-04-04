@@ -5,6 +5,7 @@ import { type Product } from "./db";
 import { formatPriceLabel, formatQuantity } from "./saleUtils";
 
 interface ProductCardProps {
+  canManageProducts?: boolean;
   product: Product;
   isSelling: boolean;
   onToggleSale: () => void;
@@ -14,15 +15,19 @@ function getAdaptiveFontSize(text: string, max: number, min: number, slope: numb
   return `${Math.max(min, max - Math.max(0, text.length - 8) * slope).toFixed(2)}px`;
 }
 
-export function ProductCard({ product, isSelling, onToggleSale }: ProductCardProps) {
+export function ProductCard({ canManageProducts = false, product, isSelling, onToggleSale }: ProductCardProps) {
   const blobUrl = useMemo(
     () => (product.imageBlob ? URL.createObjectURL(product.imageBlob) : null),
     [product.imageBlob],
   );
   const displayUrl = blobUrl || product.imageUrl;
   const priceLabel = formatPriceLabel(product);
-  const stockBadgeLabel = formatQuantity(product.stock, product.stockUnit);
-  const isLowStock = product.stock > 0 && product.stock <= (product.lowStockAlertThreshold ?? 5);
+  const displayedStock = canManageProducts ? product.globalStock ?? product.stock : product.stock;
+  const stockBadgeLabel = formatQuantity(displayedStock, product.stockUnit);
+  const lowStockThreshold = canManageProducts
+    ? product.globalLowStockAlertThreshold ?? product.lowStockAlertThreshold ?? 5
+    : product.lowStockAlertThreshold ?? 5;
+  const isLowStock = displayedStock > 0 && displayedStock <= lowStockThreshold;
   const nameFontSize = getAdaptiveFontSize(product.name, 11.5, 8.5, 0.12);
   const priceFontSize = getAdaptiveFontSize(priceLabel, 13.5, 10, 0.1);
 
@@ -52,14 +57,15 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
       <div className="flex flex-col gap-1.5 p-1.5">
         <div
           className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
-            product.stock <= 0
+            displayedStock <= 0
               ? "bg-red-500 text-white"
               : isLowStock
                 ? "bg-amber-500 text-white"
                 : "bg-white/95 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
           }`}
+          title={canManageProducts ? "Stock global" : "Stock del local"}
         >
-          {product.stock <= 0 ? "Sin stock" : stockBadgeLabel}
+          {displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
         </div>
 
         <div className="relative flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1.05rem] bg-white shadow-inner dark:bg-slate-800/30">
@@ -98,6 +104,25 @@ export function ProductCard({ product, isSelling, onToggleSale }: ProductCardPro
           >
             {priceLabel}
           </p>
+          {canManageProducts && (product.localStocks?.length ?? 0) > 0 && (
+            <div className="mt-1 flex flex-wrap justify-center gap-1">
+              {product.localStocks?.map((localStock) => (
+                <span
+                  key={localStock.localId}
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                    localStock.stock <= 0
+                      ? "bg-red-100 text-red-700"
+                      : localStock.stock <= (localStock.lowStockAlertThreshold ?? 5)
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-slate-100 text-slate-600"
+                  }`}
+                  title={`${localStock.localName}: ${formatQuantity(localStock.stock, product.stockUnit)}`}
+                >
+                  {localStock.localName}: {formatQuantity(localStock.stock, product.stockUnit)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

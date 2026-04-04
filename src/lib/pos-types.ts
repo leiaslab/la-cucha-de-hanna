@@ -26,7 +26,9 @@ export interface Product {
   price: number;
   cost: number;
   stock: number;
+  globalStock?: number;
   lowStockAlertThreshold: number;
+  globalLowStockAlertThreshold?: number;
   category: string;
   slug: string;
   saleType: SaleType;

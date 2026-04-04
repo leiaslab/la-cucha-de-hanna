@@ -64,23 +64,29 @@ export function ProductList({
     }
 
     allProductsForCategories.forEach((product) => {
-      const threshold = Math.max(0, product.lowStockAlertThreshold ?? 5);
-      if (product.stock > threshold) {
+      const visibleStock = canManageProducts ? product.globalStock ?? product.stock : product.stock;
+      const threshold = Math.max(
+        0,
+        canManageProducts
+          ? product.globalLowStockAlertThreshold ?? product.lowStockAlertThreshold ?? 5
+          : product.lowStockAlertThreshold ?? 5,
+      );
+      if (visibleStock > threshold) {
         return;
       }
 
-      const warningKey = `${product.id}-${product.stock}`;
+      const warningKey = `${product.id}-${visibleStock}`;
       if (warnedStockRef.current.has(warningKey)) {
         return;
       }
 
       warnedStockRef.current.add(warningKey);
       showToast(
-        `Alerta de stock: ${product.name} llego a ${product.stock.toLocaleString("es-AR")} ${product.stockUnit === "unit" ? "un" : product.stockUnit === "liter" ? "l" : "kg"}.`,
+        `Alerta de stock: ${product.name} llego a ${visibleStock.toLocaleString("es-AR")} ${product.stockUnit === "unit" ? "un" : product.stockUnit === "liter" ? "l" : "kg"}.`,
         "warning",
       );
     });
-  }, [allProductsForCategories]);
+  }, [allProductsForCategories, canManageProducts]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -138,6 +144,7 @@ export function ProductList({
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
+                canManageProducts={canManageProducts}
                 product={product}
                 isSelling={activeSaleProductId === product.id}
                 onToggleSale={() =>

@@ -25,6 +25,7 @@ export function ProductSaleOverlay({
     [product.imageBlob],
   );
   const displayUrl = blobUrl || product.imageUrl;
+  const globalStock = product.globalStock ?? product.stock;
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -104,7 +105,7 @@ export function ProductSaleOverlay({
                 )}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Categoria
@@ -121,13 +122,47 @@ export function ProductSaleOverlay({
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Stock
+                    {canManageProducts ? "Stock del local" : "Stock"}
                   </p>
                   <p className="mt-1.5 text-base font-bold text-slate-900">
                     {formatQuantity(product.stock, product.stockUnit)}
                   </p>
                 </div>
+                {canManageProducts && (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Stock global
+                    </p>
+                    <p className="mt-1.5 text-base font-bold text-slate-900">
+                      {formatQuantity(globalStock, product.stockUnit)}
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {canManageProducts && (product.localStocks?.length ?? 0) > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Stock por local
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {product.localStocks?.map((localStock) => (
+                      <span
+                        key={localStock.localId}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          localStock.stock <= 0
+                            ? "bg-red-100 text-red-700"
+                            : localStock.stock <= (localStock.lowStockAlertThreshold ?? 5)
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {localStock.localName}: {formatQuantity(localStock.stock, product.stockUnit)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             <section className="flex flex-col gap-3">

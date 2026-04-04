@@ -164,6 +164,12 @@ function mapProductRow(
   const localStocks = (localStocksByProductId?.get(row.id) ?? [])
     .map((stockRow) => mapProductLocalStockRow(stockRow, localNamesById))
     .sort((a, b) => (a.localName ?? "").localeCompare(b.localName ?? ""));
+  const globalStock =
+    localStocks.length > 0 ? localStocks.reduce((acc, localStock) => acc + localStock.stock, 0) : row.stock;
+  const globalLowStockAlertThreshold =
+    localStocks.length > 0
+      ? localStocks.reduce((acc, localStock) => acc + localStock.lowStockAlertThreshold, 0)
+      : row.low_stock_alert_threshold;
   const preferredLocalStock =
     activeLocalId === undefined || activeLocalId === null
       ? undefined
@@ -187,8 +193,10 @@ function mapProductRow(
     price: row.price,
     cost: row.cost,
     stock: projectedLocalStock?.stock ?? row.stock,
+    globalStock,
     lowStockAlertThreshold:
       projectedLocalStock?.lowStockAlertThreshold ?? row.low_stock_alert_threshold,
+    globalLowStockAlertThreshold,
     category: row.category,
     slug: row.slug,
     saleType: row.sale_type,

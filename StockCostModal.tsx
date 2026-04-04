@@ -30,8 +30,9 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
     return sortedProducts.reduce(
       (acc, product) => {
         const cost = product.cost ?? product.price ?? 0;
-        acc.totalCost += cost * product.stock;
-        acc.totalSale += product.price * product.stock;
+        const displayedStock = product.globalStock ?? product.stock;
+        acc.totalCost += cost * displayedStock;
+        acc.totalSale += product.price * displayedStock;
         return acc;
       },
       { totalCost: 0, totalSale: 0 },
@@ -125,7 +126,8 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
                   </thead>
                   <tbody>
                     {sortedProducts.map((product) => {
-                      const costValue = (product.cost ?? product.price ?? 0) * product.stock;
+                      const displayedStock = product.globalStock ?? product.stock;
+                      const costValue = (product.cost ?? product.price ?? 0) * displayedStock;
 
                       return (
                         <tr
@@ -136,7 +138,7 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
                             {product.name}
                           </td>
                           <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                            {formatQuantity(product.stock, product.stockUnit)}
+                            {formatQuantity(displayedStock, product.stockUnit)}
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-rose-600 dark:text-rose-400">
                             {product.saleType === "weight"
@@ -209,7 +211,7 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
                 {sortedProducts.map((product) => (
                   <tr key={product.id} className="border-b border-gray-200">
                     <td className="py-2 font-medium">{product.name}</td>
-                    <td className="py-2">{formatQuantity(product.stock, product.stockUnit)}</td>
+                    <td className="py-2">{formatQuantity(product.globalStock ?? product.stock, product.stockUnit)}</td>
                     <td className="py-2 text-right">
                       {product.saleType === "weight"
                         ? `$${(product.cost ?? product.price ?? 0).toLocaleString("es-AR")} / ${
@@ -219,7 +221,7 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
                     </td>
                     <td className="py-2 text-right">{formatPriceLabel(product)}</td>
                     <td className="py-2 text-right">
-                      ${Math.round((product.cost ?? product.price ?? 0) * product.stock).toLocaleString("es-AR")}
+                      ${Math.round((product.cost ?? product.price ?? 0) * (product.globalStock ?? product.stock)).toLocaleString("es-AR")}
                     </td>
                   </tr>
                 ))}

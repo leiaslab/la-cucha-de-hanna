@@ -27,14 +27,20 @@ export function LowStockReportModal({ isOpen, onClose }: LowStockReportModalProp
   );
 
   const totalInventoryValue = useMemo(
-    () => sortedProducts.reduce((acc, product) => acc + product.price * product.stock, 0),
+    () =>
+      sortedProducts.reduce(
+        (acc, product) => acc + product.price * (product.globalStock ?? product.stock),
+        0,
+      ),
     [sortedProducts],
   );
 
   const lowStockCount = useMemo(
     () =>
       sortedProducts.filter(
-        (product) => product.stock <= Math.max(0, product.lowStockAlertThreshold ?? 5),
+        (product) =>
+          (product.globalStock ?? product.stock) <=
+          Math.max(0, product.globalLowStockAlertThreshold ?? product.lowStockAlertThreshold ?? 5),
       ).length,
     [sortedProducts],
   );
@@ -124,7 +130,10 @@ export function LowStockReportModal({ isOpen, onClose }: LowStockReportModalProp
                   </thead>
                   <tbody>
                     {sortedProducts.map((product) => {
-                      const stockValue = product.price * product.stock;
+                      const displayedStock = product.globalStock ?? product.stock;
+                      const displayedThreshold =
+                        product.globalLowStockAlertThreshold ?? product.lowStockAlertThreshold ?? 5;
+                      const stockValue = product.price * displayedStock;
 
                       return (
                         <tr
@@ -140,17 +149,17 @@ export function LowStockReportModal({ isOpen, onClose }: LowStockReportModalProp
                           <td className="px-4 py-3 text-center">
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                                product.stock <= 0
+                                displayedStock <= 0
                                   ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                                  : product.stock <= Math.max(0, product.lowStockAlertThreshold ?? 5)
+                                  : displayedStock <= Math.max(0, displayedThreshold)
                                     ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
                                     : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                               }`}
                             >
-                              {formatQuantity(product.stock, product.stockUnit)}
+                              {formatQuantity(displayedStock, product.stockUnit)}
                             </span>
                             <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                              alerta: {formatQuantity(product.lowStockAlertThreshold ?? 5, product.stockUnit)}
+                              alerta: {formatQuantity(displayedThreshold, product.stockUnit)}
                             </p>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-200">
@@ -213,11 +222,11 @@ export function LowStockReportModal({ isOpen, onClose }: LowStockReportModalProp
                     <td className="py-2 font-medium">{product.name}</td>
                     <td className="py-2">{product.category}</td>
                     <td className="py-2 text-center">
-                      {formatQuantity(product.stock, product.stockUnit)}
+                      {formatQuantity(product.globalStock ?? product.stock, product.stockUnit)}
                     </td>
                     <td className="py-2 text-right">{formatPriceLabel(product)}</td>
                     <td className="py-2 text-right">
-                      ${Math.round(product.price * product.stock).toLocaleString("es-AR")}
+                      ${Math.round(product.price * (product.globalStock ?? product.stock)).toLocaleString("es-AR")}
                     </td>
                   </tr>
                 ))}
