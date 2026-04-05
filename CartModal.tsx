@@ -150,12 +150,12 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center overflow-y-auto bg-slate-900/60 backdrop-blur-sm print:hidden">
-      <div className="mx-4 flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-xl border border-slate-200 dark:border-slate-800 transition-colors">
-        <div className="mb-4 flex items-center justify-between print:hidden border-b border-slate-50 dark:border-slate-800 pb-4">
+      <div className="mx-2 flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-xl border border-slate-200 dark:border-slate-800 transition-colors sm:mx-4 sm:max-h-[80vh] sm:p-6">
+        <div className="mb-3 flex items-center justify-between print:hidden border-b border-slate-50 dark:border-slate-800 pb-3">
           <div className="flex gap-4">
             <button
               onClick={() => setActiveTab("cart")}
-              className={`text-lg font-bold transition-colors ${
+              className={`text-base font-bold transition-colors sm:text-lg ${
                 activeTab === "cart" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-400"
               }`}
             >
@@ -163,7 +163,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
             </button>
             <button
               onClick={() => setActiveTab("orders")}
-              className={`text-lg font-bold transition-colors ${
+              className={`text-base font-bold transition-colors sm:text-lg ${
                 activeTab === "orders"
                   ? "border-b-2 border-blue-600 text-blue-600"
                   : "text-gray-400"
@@ -172,7 +172,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
               Ventas ({totalOrdersCount})
             </button>
           </div>
-          <button onClick={onClose} className="text-2xl text-gray-500 hover:text-gray-700">
+          <button onClick={onClose} className="text-xl text-gray-500 hover:text-gray-700 sm:text-2xl">
             x
           </button>
         </div>
@@ -180,7 +180,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
         <div className="flex-1 overflow-y-auto pr-2 print:hidden">
           {activeTab === "cart" ? (
             <>
-              <div className="space-y-4">
+              <div className="space-y-2 sm:space-y-4">
                 {cartItems?.length === 0 ? (
                   <p className="py-10 text-center text-gray-500">Tu carrito esta vacio.</p>
                 ) : (
