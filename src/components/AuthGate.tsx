@@ -137,7 +137,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             </p>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit} autoComplete="off" data-lpignore="true">
             <div>
               <label htmlFor="login-username" className="block text-sm font-medium text-slate-700">
                 Usuario
@@ -148,7 +148,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                autoComplete="username"
+                name="login-access"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                data-lpignore="true"
+                data-1p-ignore="true"
                 required
               />
             </div>
@@ -163,7 +169,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                autoComplete="current-password"
+                name="login-secret"
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-1p-ignore="true"
                 required
               />
             </div>

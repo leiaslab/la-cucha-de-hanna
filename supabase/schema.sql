@@ -27,6 +27,7 @@ create table if not exists public.productos (
 create table if not exists public.locales (
   id bigserial primary key,
   name text not null unique,
+  thermal_printer_enabled boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -59,7 +60,9 @@ create table if not exists public.arqueos (
   cash_sales double precision,
   mercado_pago_sales double precision,
   transfer_sales double precision,
-  expected_cash double precision
+  expected_cash double precision,
+  counted_cash double precision,
+  cash_difference double precision
 );
 
 create table if not exists public.ventas (
@@ -92,6 +95,15 @@ alter table public.arqueos
 
 alter table public.ventas
   add column if not exists local_id bigint references public.locales(id) on delete set null;
+
+alter table public.locales
+  add column if not exists thermal_printer_enabled boolean not null default true;
+
+alter table public.arqueos
+  add column if not exists counted_cash double precision;
+
+alter table public.arqueos
+  add column if not exists cash_difference double precision;
 
 create table if not exists public.productos_stock_local (
   id bigserial primary key,
@@ -204,6 +216,7 @@ declare
   v_local_id bigint;
 begin
   v_user_id := nullif((p_payload ->> 'user_id')::bigint, 0);
+  v_payment_method := nullif(p_payload ->> 'payment_method', '');
 
   select id, local_id
   into v_shift_id, v_local_id
@@ -237,7 +250,7 @@ begin
     coalesce((p_payload ->> 'total')::double precision, 0),
     'synced',
     nullif(p_payload ->> 'notes', ''),
-    nullif(p_payload ->> 'payment_method', ''),
+    v_payment_method,
     v_shift_id
   )
   returning id into v_sale_id;
@@ -249,41 +262,26 @@ begin
     v_quantity := coalesce((v_item ->> 'quantity')::double precision, 0);
 
     if v_local_id is not null then
-      perform 1
-      from public.productos_stock_local
-      where product_id = v_product_id
-        and local_id = v_local_id
-        and stock >= v_quantity
-      for update;
-
-      if not found then
-        raise exception 'Stock insuficiente para el producto % en este local.', v_product_id;
-      end if;
-
       update public.productos_stock_local
       set stock = stock - v_quantity
       where product_id = v_product_id
-        and local_id = v_local_id;
-    else
-      perform 1
-      from public.productos
-      where id = v_product_id
-        and stock >= v_quantity
-      for update;
+        and local_id = v_local_id
+        and stock >= v_quantity;
 
       if not found then
-        raise exception 'Stock insuficiente o producto inexistente para el item %', v_product_id;
+        raise exception 'Stock insuficiente en el local para el producto ID %', v_product_id;
       end if;
-
-      update public.productos
-      set stock = stock - v_quantity,
-          last_updated = timezone('utc', now())
-      where id = v_product_id;
     end if;
 
     update public.productos
-    set last_updated = timezone('utc', now())
-    where id = v_product_id;
+    set stock = stock - v_quantity,
+        last_updated = timezone('utc', now())
+    where id = v_product_id
+      and stock >= v_quantity;
+
+    if not found then
+      raise exception 'Stock global insuficiente para el producto ID %', v_product_id;
+    end if;
 
     insert into public.detalle_ventas (
       sale_id,
@@ -308,8 +306,6 @@ begin
       coalesce((v_item ->> 'step')::double precision, 1)
     );
   end loop;
-
-  v_payment_method := nullif(p_payload ->> 'payment_method', '');
 
   insert into public.movimientos (
     type,
@@ -419,7 +415,18 @@ declare
   v_total_sales double precision;
   v_order_count integer;
   v_opening_cash double precision;
+  v_pending_sales_count integer;
 begin
+  -- Validar si hay ventas pendientes de sincronizar para este turno
+  select count(*)
+  into v_pending_sales_count
+  from public.ventas
+  where shift_id = p_shift_id and status = 'pending';
+
+  if v_pending_sales_count > 0 then
+    raise exception 'No se puede cerrar el turno porque hay % ventas pendientes de sincronizar.', v_pending_sales_count;
+  end if;
+
   select opening_cash
   into v_opening_cash
   from public.arqueos
@@ -479,5 +486,120 @@ begin
   );
 
   return p_shift_id;
+end;
+$$;
+
+create or replace function public.reset_sales_data(
+  p_started_at timestamptz default null,
+  p_ended_at timestamptz default null
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_sale_ids bigint[] := '{}'::bigint[];
+  v_shift_ids bigint[] := '{}'::bigint[];
+  v_deleted_count integer := 0;
+  v_deleted_total double precision := 0;
+begin
+  if (p_started_at is null) <> (p_ended_at is null) then
+    raise exception 'Debes enviar ambas fechas o ninguna.';
+  end if;
+
+  if p_started_at is not null and p_ended_at is not null and p_started_at > p_ended_at then
+    raise exception 'El rango de fechas es invalido.';
+  end if;
+
+  select
+    coalesce(array_agg(id order by id), '{}'::bigint[]),
+    coalesce(array_agg(distinct shift_id) filter (where shift_id is not null), '{}'::bigint[]),
+    count(*)::integer,
+    coalesce(sum(total), 0)
+  into
+    v_sale_ids,
+    v_shift_ids,
+    v_deleted_count,
+    v_deleted_total
+  from public.ventas
+  where (p_started_at is null or created_at >= p_started_at)
+    and (p_ended_at is null or created_at <= p_ended_at);
+
+  if v_deleted_count = 0 then
+    return jsonb_build_object(
+      'deleted_count', 0,
+      'deleted_total', 0,
+      'affected_shift_count', 0
+    );
+  end if;
+
+  delete from public.movimientos
+  where reference_type = 'sale'
+    and reference_id = any(v_sale_ids);
+
+  delete from public.pdfs
+  where entity_type = 'sale'
+    and entity_id = any(v_sale_ids);
+
+  delete from public.ventas
+  where id = any(v_sale_ids);
+
+  if coalesce(array_length(v_shift_ids, 1), 0) > 0 then
+    delete from public.pdfs
+    where entity_type = 'shift'
+      and entity_id = any(v_shift_ids);
+
+    update public.arqueos as arqueos
+    set order_count = coalesce(stats.order_count, 0),
+        total_sales = coalesce(stats.total_sales, 0),
+        cash_sales = coalesce(stats.cash_sales, 0),
+        mercado_pago_sales = coalesce(stats.mp_sales, 0),
+        transfer_sales = coalesce(stats.transfer_sales, 0),
+        expected_cash = coalesce(arqueos.opening_cash, 0) + coalesce(stats.cash_sales, 0)
+    from (
+      select
+        shift_id,
+        count(*)::integer as order_count,
+        coalesce(sum(total), 0) as total_sales,
+        coalesce(sum(case when payment_method = 'cash' then total else 0 end), 0) as cash_sales,
+        coalesce(sum(case when payment_method = 'mercado_pago' then total else 0 end), 0) as mp_sales,
+        coalesce(sum(case when payment_method = 'transfer' then total else 0 end), 0) as transfer_sales
+      from public.ventas
+      where shift_id = any(v_shift_ids)
+      group by shift_id
+    ) as stats
+    where arqueos.id = any(v_shift_ids)
+      and arqueos.status = 'closed'
+      and arqueos.id = stats.shift_id;
+
+    update public.arqueos
+    set order_count = 0,
+        total_sales = 0,
+        cash_sales = 0,
+        mercado_pago_sales = 0,
+        transfer_sales = 0,
+        expected_cash = coalesce(opening_cash, 0)
+    where id = any(v_shift_ids)
+      and status = 'closed'
+      and not exists (
+        select 1
+        from public.ventas
+        where shift_id = public.arqueos.id
+      );
+
+    update public.movimientos as movimientos
+    set amount = coalesce(arqueos.expected_cash, arqueos.opening_cash, 0)
+    from public.arqueos as arqueos
+    where movimientos.reference_type = 'shift'
+      and movimientos.reference_id = arqueos.id
+      and movimientos.type = 'closing'
+      and arqueos.id = any(v_shift_ids);
+  end if;
+
+  return jsonb_build_object(
+    'deleted_count', v_deleted_count,
+    'deleted_total', v_deleted_total,
+    'affected_shift_count', coalesce(array_length(v_shift_ids, 1), 0)
+  );
 end;
 $$;

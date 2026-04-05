@@ -12,12 +12,16 @@ export async function finalizeLocalOrder({
   notes,
   paymentMethod,
   clientId,
+  autoDownloadPdf = false,
+  generatePdf = false,
 }: {
   cartItems: CheckoutItem[];
   total: number;
   notes?: string;
   paymentMethod: PaymentMethod;
   clientId?: number | null;
+  autoDownloadPdf?: boolean;
+  generatePdf?: boolean;
 }) {
   const result = await checkoutRemote({
     cartItems,
@@ -25,10 +29,10 @@ export async function finalizeLocalOrder({
     notes,
     paymentMethod,
     clientId,
-    generatePdf: true,
+    generatePdf,
   });
 
-  if (result.pdf) {
+  if (result.pdf && autoDownloadPdf) {
     downloadPdfResult(result.pdf);
   }
 

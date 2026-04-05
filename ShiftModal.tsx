@@ -24,6 +24,7 @@ export function ShiftModal({
   const [openingCash, setOpeningCash] = useState("");
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
+  const [countedCash, setCountedCash] = useState("");
 
   const activeShift = useLiveQuery(async () => {
     const openShifts = await db.shifts.where("status").equals("open").toArray();
@@ -64,6 +65,16 @@ export function ShiftModal({
     () => (shiftOrders ?? []).reduce((acc, order) => acc + order.total, 0),
     [shiftOrders],
   );
+  const expectedCash = activeShift ? activeShift.openingCash + paymentSummary.cash : 0;
+  const parsedCountedCash = Number(countedCash);
+  const countedCashIsValid = countedCash.trim() !== "" && Number.isFinite(parsedCountedCash) && parsedCountedCash >= 0;
+  const cashDifference = countedCashIsValid ? parsedCountedCash - expectedCash : null;
+
+  const handleDismiss = () => {
+    setClosingNote("");
+    setCountedCash("");
+    onClose();
+  };
 
   const handleOpenShift = async () => {
     const parsedOpeningCash = Number(openingCash);
@@ -81,7 +92,7 @@ export function ShiftModal({
     setOpeningCash("");
     setOpeningNote("");
     showToast("Turno abierto con exito.", "success");
-    onClose();
+    handleDismiss();
   };
 
   const handleCloseShift = async () => {
@@ -89,17 +100,24 @@ export function ShiftModal({
       return;
     }
 
+    if (!countedCashIsValid) {
+      showToast("Carga el arqueo real de caja antes de cerrar el turno.", "error");
+      return;
+    }
+
     const result = await closeShiftRemote(activeShift.id, {
       closingNote: closingNote.trim() || undefined,
+      countedCash: parsedCountedCash,
       generatePdf: true,
     });
 
     setClosingNote("");
+    setCountedCash("");
     if (result.pdf) {
       downloadPdfResult(result.pdf);
     }
     showToast("Turno cerrado con exito.", "success");
-    onClose();
+    handleDismiss();
   };
 
   if (!isOpen) {
@@ -125,7 +143,7 @@ export function ShiftModal({
           {!isBlockingOpen && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleDismiss}
               className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Cerrar
@@ -249,7 +267,7 @@ export function ShiftModal({
                     Caja esperada
                   </p>
                   <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-                    ${Math.round(activeShift.openingCash + paymentSummary.cash).toLocaleString("es-AR")}
+                    ${Math.round(expectedCash).toLocaleString("es-AR")}
                   </p>
                 </div>
               </div>
@@ -273,6 +291,43 @@ export function ShiftModal({
               </div>
 
               <div>
+                <label htmlFor="countedCash" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Arqueo real de caja
+                </label>
+                <input
+                  id="countedCash"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={countedCash}
+                  onChange={(event) => setCountedCash(event.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="Ej: 42500"
+                />
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Carga cuanto dinero contaste realmente en caja para registrar el cierre.
+                </p>
+              </div>
+
+              {cashDifference !== null && (
+                <div
+                  className={`rounded-2xl border px-4 py-3 text-sm ${
+                    cashDifference === 0
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : cashDifference > 0
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {cashDifference === 0
+                    ? "El arqueo coincide con la caja esperada."
+                    : cashDifference > 0
+                      ? `Sobrante detectado: $${Math.round(cashDifference).toLocaleString("es-AR")}`
+                      : `Faltante detectado: $${Math.round(Math.abs(cashDifference)).toLocaleString("es-AR")}`}
+                </div>
+              )}
+
+              <div>
                 <label htmlFor="closingNote" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                   Nota de cierre
                 </label>
@@ -290,7 +345,8 @@ export function ShiftModal({
                 <button
                   type="button"
                   onClick={() => void handleCloseShift()}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+                  disabled={!countedCashIsValid}
+                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cerrar turno
                 </button>

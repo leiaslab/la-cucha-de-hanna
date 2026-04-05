@@ -8,13 +8,20 @@ import type {
   CheckoutPayload,
   CheckoutResult,
   ClientRecord,
+  LocalCreateInput,
+  LocalRecord,
+  LocalUpdateInput,
   PdfGenerationResult,
   Product,
   ProductInput,
   RemoteSnapshot,
+  SalesResetInput,
+  SalesResetResult,
   Shift,
   ShiftCloseInput,
   ShiftOpenInput,
+  TicketEmailPayload,
+  TicketEmailResult,
 } from "./pos-types";
 import { hydrateRemoteSnapshot } from "./remote-cache";
 
@@ -76,10 +83,40 @@ export async function saveProductRemote(product: ProductInput, productId?: numbe
       })
     : await apiFetch<Product>("/api/products", {
         method: "POST",
-        body: JSON.stringify(product),
-      });
+      body: JSON.stringify(product),
+    });
 
-  await db.products.put(saved);
+  await syncRemoteSnapshot();
+
+  if (saved.id && product.localStocks && product.localStocks.length > 0) {
+    const knownLocales = await db.locals.toArray();
+    const localNamesById = new Map(knownLocales.map((locale) => [locale.id, locale.name]));
+    const normalizedLocalStocks = product.localStocks.map((localStock) => ({
+      localId: localStock.localId,
+      localName: localNamesById.get(localStock.localId),
+      stock: localStock.stock,
+      lowStockAlertThreshold: localStock.lowStockAlertThreshold,
+    }));
+    const preferredLocalStock =
+      normalizedLocalStocks.find((localStock) => localStock.localId === product.preferredLocalId) ??
+      normalizedLocalStocks[0];
+    const globalStock = normalizedLocalStocks.reduce((acc, localStock) => acc + localStock.stock, 0);
+    const globalLowStockAlertThreshold = normalizedLocalStocks.reduce(
+      (acc, localStock) => acc + localStock.lowStockAlertThreshold,
+      0,
+    );
+
+    await db.products.put({
+      ...saved,
+      stock: preferredLocalStock?.stock ?? saved.stock,
+      globalStock,
+      lowStockAlertThreshold:
+        preferredLocalStock?.lowStockAlertThreshold ?? saved.lowStockAlertThreshold,
+      globalLowStockAlertThreshold,
+      localStocks: normalizedLocalStocks,
+    });
+  }
+
   return saved;
 }
 
@@ -190,10 +227,55 @@ export async function regenerateShiftPdf(shiftId: number) {
   });
 }
 
+export async function resetSalesRemote(payload: SalesResetInput) {
+  const result = await apiFetch<SalesResetResult>("/api/sales/reset", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  await syncRemoteSnapshot();
+  return result;
+}
+
+export async function sendTicketEmailRemote(payload: TicketEmailPayload) {
+  return apiFetch<TicketEmailResult>("/api/tickets/email", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function listAppUsersRemote() {
   return apiFetch<AppUser[]>("/api/users", {
     cache: "no-store",
   });
+}
+
+export async function createLocalRemote(payload: LocalCreateInput) {
+  const local = await apiFetch<LocalRecord>("/api/locales", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  await db.locals.put(local);
+  return local;
+}
+
+export async function updateLocalRemote(localId: number, payload: LocalUpdateInput) {
+  const local = await apiFetch<LocalRecord>(`/api/locales/${localId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+
+  await syncRemoteSnapshot();
+  return local;
+}
+
+export async function deleteLocalRemote(localId: number) {
+  await apiFetch<{ success: true }>(`/api/locales/${localId}`, {
+    method: "DELETE",
+  });
+
+  await syncRemoteSnapshot();
 }
 
 export async function createAppUserRemote(payload: AppUserInput) {

@@ -67,19 +67,17 @@ function mapSessionUser(row: AppUserRow): SessionUser {
   };
 }
 
-async function resolveLocaleIdByName(localeName: string) {
+async function assertLocaleExists(localeId: number) {
   const supabase = createServiceRoleSupabaseClient();
-  const normalizedName = localeName.trim();
 
-  if (!normalizedName) {
-    throw new Error("Debes indicar un local.");
+  if (!Number.isFinite(localeId)) {
+    throw new Error("Debes seleccionar un local valido.");
   }
 
   const { data: existing, error: existingError } = await supabase
     .from("locales")
     .select("id,name")
-    .ilike("name", normalizedName)
-    .limit(1)
+    .eq("id", localeId)
     .maybeSingle<{ id: number; name: string }>();
 
   if (existingError) {
@@ -94,40 +92,7 @@ async function resolveLocaleIdByName(localeName: string) {
     return existing.id;
   }
 
-  const { data: created, error: createError } = await supabase
-    .from("locales")
-    .insert({ name: normalizedName })
-    .select("id")
-    .single<{ id: number }>();
-
-  if (createError) {
-    throw new Error(createError.message);
-  }
-
-  const { data: products, error: productsError } = await supabase
-    .from("productos")
-    .select("id, low_stock_alert_threshold");
-
-  if (productsError) {
-    throw new Error(productsError.message);
-  }
-
-  if ((products ?? []).length > 0) {
-    const { error: stockSeedError } = await supabase.from("productos_stock_local").insert(
-      (products ?? []).map((product) => ({
-        product_id: product.id,
-        local_id: created.id,
-        stock: 0,
-        low_stock_alert_threshold: product.low_stock_alert_threshold ?? 5,
-      })),
-    );
-
-    if (stockSeedError) {
-      throw new Error(stockSeedError.message);
-    }
-  }
-
-  return created.id;
+  throw new Error("El local seleccionado no existe.");
 }
 
 export async function authenticateAppUser(username: string, password: string) {
@@ -174,7 +139,7 @@ export async function listAppUsers() {
 
 export async function createAppUser(input: AppUserInput) {
   const supabase = createServiceRoleSupabaseClient();
-  const localeId = await resolveLocaleIdByName(input.localeName);
+  const localeId = await assertLocaleExists(input.localeId);
   const payload = {
     full_name: input.fullName.trim(),
     username: normalizeUsername(input.username),
@@ -220,8 +185,8 @@ export async function updateAppUser(userId: number, input: AppUserUpdateInput) {
     payload.is_active = input.isActive;
   }
 
-  if (input.localeName !== undefined) {
-    payload.locale_id = await resolveLocaleIdByName(input.localeName);
+  if (input.localeId !== undefined) {
+    payload.locale_id = await assertLocaleExists(input.localeId);
   }
 
   if (input.password && input.password.trim()) {

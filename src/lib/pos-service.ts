@@ -4,7 +4,9 @@ import type {
   CheckoutPayload,
   CheckoutResult,
   ClientRecord,
+  LocalCreateInput,
   LocalRecord,
+  LocalUpdateInput,
   SessionUser,
   Order,
   PaymentMethod,
@@ -14,6 +16,8 @@ import type {
   ProductInput,
   ProductLocalStock,
   RemoteSnapshot,
+  SalesResetInput,
+  SalesResetResult,
   Shift,
   ShiftCloseInput,
   ShiftOpenInput,
@@ -92,6 +96,8 @@ type ShiftRow = {
   mercado_pago_sales: number | null;
   transfer_sales: number | null;
   expected_cash: number | null;
+  counted_cash: number | null;
+  cash_difference: number | null;
 };
 
 type ClientRow = {
@@ -124,6 +130,7 @@ type AppUserReferenceRow = {
 type LocalRow = {
   id: number;
   name: string;
+  thermal_printer_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -176,16 +183,16 @@ function mapProductRow(
       : localStocks.find((stockRow) => stockRow.localId === activeLocalId);
   const projectedLocalStock =
     preferredLocalStock ??
-    (activeLocalId === undefined || activeLocalId === null
-      ? localStocks.length === 1
-        ? localStocks[0]
-        : undefined
-      : {
-          localId: activeLocalId,
-          localName: localNamesById?.get(activeLocalId)?.name,
-          stock: 0,
-          lowStockAlertThreshold: row.low_stock_alert_threshold,
-        });
+    (localStocks.length === 1
+      ? localStocks[0]
+      : activeLocalId === undefined || activeLocalId === null
+        ? undefined
+        : {
+            localId: activeLocalId,
+            localName: localNamesById?.get(activeLocalId)?.name,
+            stock: 0,
+            lowStockAlertThreshold: row.low_stock_alert_threshold,
+          });
 
   return {
     id: row.id,
@@ -264,6 +271,8 @@ function mapShiftRow(row: ShiftRow, localNamesById?: Map<number, LocalRow>): Shi
     mercadoPagoSales: row.mercado_pago_sales ?? undefined,
     transferSales: row.transfer_sales ?? undefined,
     expectedCash: row.expected_cash ?? undefined,
+    countedCash: row.counted_cash ?? undefined,
+    cashDifference: row.cash_difference ?? undefined,
   };
 }
 
@@ -291,6 +300,7 @@ function mapLocalRow(row: LocalRow): LocalRecord {
   return {
     id: row.id,
     name: row.name,
+    thermalPrinterEnabled: row.thermal_printer_enabled,
     createdAt: toMillis(row.created_at),
     updatedAt: toMillis(row.updated_at),
   };
@@ -310,8 +320,9 @@ function mapPdfRow(row: PdfRow): PdfRecord {
 }
 
 function mapProductInput(input: ProductInput, preferredLocalId?: number | null) {
+  const resolvedPreferredLocalId = input.preferredLocalId ?? preferredLocalId;
   const preferredLocalStock =
-    input.localStocks?.find((localStock) => localStock.localId === preferredLocalId) ??
+    input.localStocks?.find((localStock) => localStock.localId === resolvedPreferredLocalId) ??
     input.localStocks?.[0];
 
   return {
@@ -353,6 +364,128 @@ async function expectMany<T>(promise: PromiseLike<{ data: T[] | null; error: { m
 async function listLocalRows() {
   const supabase = createServiceRoleSupabaseClient();
   return expectMany(supabase.from("locales").select("*").order("name"));
+}
+
+export async function createLocal(input: LocalCreateInput): Promise<LocalRecord> {
+  const supabase = createServiceRoleSupabaseClient();
+  const normalizedName = input.name.trim();
+
+  if (!normalizedName) {
+    throw new Error("Debes indicar un nombre para el local.");
+  }
+
+  const existing = await expectMany(
+    supabase.from("locales").select("*").ilike("name", normalizedName).limit(1),
+  );
+
+  if (existing.length > 0) {
+    return mapLocalRow(existing[0] as LocalRow);
+  }
+
+  const created = await expectSingle(
+    supabase
+      .from("locales")
+      .insert({
+        name: normalizedName,
+        thermal_printer_enabled: input.thermalPrinterEnabled ?? true,
+      })
+      .select("*")
+      .single(),
+  );
+
+  const createdLocal = created as LocalRow;
+  const products = (await expectMany(
+    supabase.from("productos").select("id,low_stock_alert_threshold"),
+  )) as Array<{ id: number; low_stock_alert_threshold: number | null }>;
+
+  if (products.length > 0) {
+    const { error: stockSeedError } = await supabase.from("productos_stock_local").insert(
+      products.map((product) => ({
+        product_id: product.id,
+        local_id: createdLocal.id,
+        stock: 0,
+        low_stock_alert_threshold: product.low_stock_alert_threshold ?? 5,
+      })),
+    );
+
+    if (stockSeedError) {
+      throw new Error(stockSeedError.message);
+    }
+  }
+
+  return mapLocalRow(createdLocal);
+}
+
+export async function updateLocal(localId: number, input: LocalUpdateInput): Promise<LocalRecord> {
+  const supabase = createServiceRoleSupabaseClient();
+
+  if (!Number.isFinite(localId)) {
+    throw new Error("Debes indicar un local valido.");
+  }
+
+  const updates: {
+    name?: string;
+    thermal_printer_enabled?: boolean;
+  } = {};
+
+  if (typeof input.name === "string") {
+    const normalizedName = input.name.trim();
+
+    if (!normalizedName) {
+      throw new Error("Debes indicar un nombre para el local.");
+    }
+
+    const existingByName = (await expectMany(
+      supabase.from("locales").select("*").ilike("name", normalizedName).limit(1),
+    )) as LocalRow[];
+
+    if (existingByName.length > 0 && existingByName[0].id !== localId) {
+      throw new Error("Ya existe otro local con ese nombre.");
+    }
+
+    updates.name = normalizedName;
+  }
+
+  if (typeof input.thermalPrinterEnabled === "boolean") {
+    updates.thermal_printer_enabled = input.thermalPrinterEnabled;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error("No hay cambios para guardar en el local.");
+  }
+
+  const updated = await expectSingle(
+    supabase
+      .from("locales")
+      .update(updates)
+      .eq("id", localId)
+      .select("*")
+      .single(),
+  );
+
+  return mapLocalRow(updated as LocalRow);
+}
+
+export async function deleteLocal(localId: number) {
+  const supabase = createServiceRoleSupabaseClient();
+
+  if (!Number.isFinite(localId)) {
+    throw new Error("Debes indicar un local valido.");
+  }
+
+  const assignedUsers = await expectMany(
+    supabase.from("app_users").select("id").eq("locale_id", localId).limit(1),
+  );
+
+  if (assignedUsers.length > 0) {
+    throw new Error("No puedes borrar un local que todavia tiene usuarios asignados.");
+  }
+
+  const { error } = await supabase.from("locales").delete().eq("id", localId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 function normalizeProductLocalStocks(input: ProductInput, localRows: LocalRow[]) {
@@ -466,6 +599,28 @@ async function getShiftById(shiftId: number) {
   return mapShiftRow(shiftRow, createLocalMap(localRows as LocalRow[]));
 }
 
+async function storeShiftCashCount(
+  shiftId: number,
+  countedCash: number,
+) {
+  const supabase = createServiceRoleSupabaseClient();
+  const currentShift = await getShiftById(shiftId);
+  const expectedCash = currentShift.expectedCash ?? currentShift.openingCash;
+  const cashDifference = countedCash - expectedCash;
+
+  const { error } = await supabase
+    .from("arqueos")
+    .update({
+      counted_cash: countedCash,
+      cash_difference: cashDifference,
+    })
+    .eq("id", shiftId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<RemoteSnapshot> {
   const supabase = createServiceRoleSupabaseClient();
   const isAdmin = sessionUser.role === "admin";
@@ -516,7 +671,7 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
 
 export async function createProduct(input: ProductInput, sessionUser?: SessionUser | null) {
   const supabase = createServiceRoleSupabaseClient();
-  const preferredLocalId = sessionUser?.localId ?? null;
+  const preferredLocalId = input.preferredLocalId ?? sessionUser?.localId ?? null;
   const localRows = (await listLocalRows()) as LocalRow[];
 
   const row = await expectSingle(
@@ -542,7 +697,7 @@ export async function createProduct(input: ProductInput, sessionUser?: SessionUs
 
 export async function updateProduct(id: number, input: ProductInput, sessionUser?: SessionUser | null) {
   const supabase = createServiceRoleSupabaseClient();
-  const preferredLocalId = sessionUser?.localId ?? null;
+  const preferredLocalId = input.preferredLocalId ?? sessionUser?.localId ?? null;
   const localRows = (await listLocalRows()) as LocalRow[];
 
   const row = await expectSingle(
@@ -633,9 +788,11 @@ export async function replaceProducts(products: ProductInput[], sessionUser?: Se
   const localNamesById = createLocalMap(localRows);
   const localStocksByProductId = createProductLocalStockMap(localStockRows);
 
-  return insertedRows.map((row) =>
-    mapProductRow(row, localStocksByProductId, localNamesById, preferredLocalId),
-  );
+  return insertedRows.map((row) => {
+    const sourceProduct = products.find((product) => product.slug === row.slug);
+    const mappedPreferredLocalId = sourceProduct?.preferredLocalId ?? preferredLocalId;
+    return mapProductRow(row, localStocksByProductId, localNamesById, mappedPreferredLocalId);
+  });
 }
 
 export async function listClients() {
@@ -887,6 +1044,11 @@ export async function openShiftForUser(input: ShiftOpenInput, sessionUser: Sessi
 
 export async function closeShift(shiftId: number, input: ShiftCloseInput) {
   const supabase = createServiceRoleSupabaseClient();
+
+  if (!Number.isFinite(input.countedCash) || Number(input.countedCash) < 0) {
+    throw new Error("Debes cargar un arqueo valido antes de cerrar el turno.");
+  }
+
   const { data, error } = await supabase.rpc("close_shift", {
     p_shift_id: shiftId,
     p_closing_note: input.closingNote ?? null,
@@ -898,6 +1060,7 @@ export async function closeShift(shiftId: number, input: ShiftCloseInput) {
   }
 
   const closedShiftId = Number(data ?? shiftId);
+  await storeShiftCashCount(closedShiftId, Number(input.countedCash));
   const shift = await getShiftById(closedShiftId);
   let pdf: PdfGenerationResult | null = null;
 
@@ -917,6 +1080,11 @@ export async function closeShift(shiftId: number, input: ShiftCloseInput) {
 
 export async function closeShiftForUser(shiftId: number, input: ShiftCloseInput, sessionUser: SessionUser) {
   const supabase = createServiceRoleSupabaseClient();
+
+  if (!Number.isFinite(input.countedCash) || Number(input.countedCash) < 0) {
+    throw new Error("Debes cargar un arqueo valido antes de cerrar el turno.");
+  }
+
   const { data, error } = await supabase.rpc("close_shift", {
     p_shift_id: shiftId,
     p_closing_note: input.closingNote ?? null,
@@ -928,6 +1096,7 @@ export async function closeShiftForUser(shiftId: number, input: ShiftCloseInput,
   }
 
   const closedShiftId = Number(data ?? shiftId);
+  await storeShiftCashCount(closedShiftId, Number(input.countedCash));
   const shift = await getShiftById(closedShiftId);
   let pdf: PdfGenerationResult | null = null;
 
@@ -943,4 +1112,38 @@ export async function closeShiftForUser(shiftId: number, input: ShiftCloseInput,
     shift,
     pdf,
   };
+}
+
+function normalizeResetSalesResult(data: unknown): SalesResetResult {
+  if (!data || typeof data !== "object") {
+    throw new Error("Supabase no devolvio un resultado valido al borrar ventas.");
+  }
+
+  const payload = data as {
+    deleted_count?: number | string | null;
+    deleted_total?: number | string | null;
+    affected_shift_count?: number | string | null;
+  };
+
+  return {
+    deletedCount: Number(payload.deleted_count ?? 0),
+    deletedTotal: Number(payload.deleted_total ?? 0),
+    affectedShiftCount: Number(payload.affected_shift_count ?? 0),
+  };
+}
+
+export async function resetSalesData(input: SalesResetInput): Promise<SalesResetResult> {
+  const supabase = createServiceRoleSupabaseClient();
+  const startsAt = input.scope === "all" ? null : input.startsAt ?? null;
+  const endsAt = input.scope === "all" ? null : input.endsAt ?? null;
+  const { data, error } = await supabase.rpc("reset_sales_data", {
+    p_started_at: startsAt,
+    p_ended_at: endsAt,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return normalizeResetSalesResult(data);
 }

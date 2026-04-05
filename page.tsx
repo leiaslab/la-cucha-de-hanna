@@ -16,11 +16,32 @@ import { ProductFormModal } from "./ProductFormModal";
 import { ProductList } from "./ProductList";
 import { ThermalPrinterModal } from "./ThermalPrinterModal";
 import { UsersModal } from "./UsersModal";
+import { LocalesModal } from "./LocalesModal";
+import { ProductLocalSelectorModal } from "./ProductLocalSelectorModal";
 import { useAuth } from "./src/components/AuthGate";
 import { importProductsRemote, syncRemoteSnapshot } from "./src/lib/api-client";
 import { ToastContainer } from "./Toast";
 
 type ThemeMode = "light" | "dark";
+
+const KIOSK_MODE_STORAGE_KEY = "app:kiosk-mode";
+
+function parseKioskModeFromSearch(search: string) {
+  const params = new URLSearchParams(search);
+  const value = params.get("kioskMode") ?? params.get("kiosk");
+
+  if (value === null) {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (["0", "false", "off", "no"].includes(normalizedValue)) {
+    return false;
+  }
+
+  return true;
+}
 
 function subscribeToOnlineStatus(callback: () => void) {
   window.addEventListener("online", callback);
@@ -61,18 +82,26 @@ export default function Home() {
   const [isStockCostOpen, setIsStockCostOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [isLocalesModalOpen, setIsLocalesModalOpen] = useState(false);
+  const [isProductLocalSelectorOpen, setIsProductLocalSelectorOpen] = useState(false);
   const [isThermalPrinterOpen, setIsThermalPrinterOpen] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [preferredProductLocalId, setPreferredProductLocalId] = useState<number | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasOpenShift, setHasOpenShift] = useState<boolean | null>(null);
+  const [kioskModePreference, setKioskModePreference] = useState(false);
+  const [isKioskForcedByQuery, setIsKioskForcedByQuery] = useState(false);
+  const [isLargeViewport, setIsLargeViewport] = useState(false);
+  const [isTouchViewport, setIsTouchViewport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSyncingRef = useRef(false);
   const quickMenuRef = useRef<HTMLDivElement>(null);
 
   const cartCount = useLiveQuery(() => db.cart.count()) || 0;
+  const availableLocales = useLiveQuery(() => db.locals.orderBy("name").toArray(), []);
   const activeShift = useLiveQuery(() => getOpenShiftForUser(user?.id), [user?.id]);
   const isOnline = useSyncExternalStore(
     subscribeToOnlineStatus,
@@ -145,6 +174,46 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const largeViewportQuery = window.matchMedia("(min-width: 1024px)");
+    const touchViewportQuery = window.matchMedia("(pointer: coarse)");
+
+    const syncViewport = () => {
+      setIsLargeViewport(largeViewportQuery.matches);
+      setIsTouchViewport(touchViewportQuery.matches);
+    };
+
+    const syncKioskMode = () => {
+      const kioskModeFromQuery = parseKioskModeFromSearch(window.location.search);
+
+      if (kioskModeFromQuery !== null) {
+        setKioskModePreference(kioskModeFromQuery);
+        setIsKioskForcedByQuery(true);
+        return;
+      }
+
+      setIsKioskForcedByQuery(false);
+      setKioskModePreference(window.localStorage.getItem(KIOSK_MODE_STORAGE_KEY) === "true");
+    };
+
+    syncViewport();
+    syncKioskMode();
+
+    largeViewportQuery.addEventListener("change", syncViewport);
+    touchViewportQuery.addEventListener("change", syncViewport);
+    window.addEventListener("popstate", syncKioskMode);
+
+    return () => {
+      largeViewportQuery.removeEventListener("change", syncViewport);
+      touchViewportQuery.removeEventListener("change", syncViewport);
+      window.removeEventListener("popstate", syncKioskMode);
+    };
+  }, []);
+
+  useEffect(() => {
     const root = document.documentElement;
     const isDarkMode = theme === "dark";
 
@@ -161,6 +230,18 @@ export default function Home() {
     root.style.colorScheme = theme;
     window.localStorage.setItem("theme", theme);
   }, [theme]);
+
+  const isKioskMode = kioskModePreference && isLargeViewport;
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    root.dataset.kioskMode = isKioskMode ? "true" : "false";
+
+    return () => {
+      delete root.dataset.kioskMode;
+    };
+  }, [isKioskMode]);
 
   useEffect(() => {
     if (!isQuickMenuOpen) {
@@ -202,12 +283,14 @@ export default function Home() {
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
+    setPreferredProductLocalId(null);
     setIsModalOpen(true);
   };
 
   const handleNewProduct = () => {
     setEditingProduct(null);
-    setIsModalOpen(true);
+    setPreferredProductLocalId(null);
+    setIsProductLocalSelectorOpen(true);
   };
 
   const handleMenuAction = (action: () => void) => {
@@ -215,7 +298,21 @@ export default function Home() {
     action();
   };
 
+  const handleToggleKioskMode = () => {
+    if (isKioskForcedByQuery || typeof window === "undefined") {
+      return;
+    }
+
+    setKioskModePreference((current) => {
+      const nextValue = !current;
+      window.localStorage.setItem(KIOSK_MODE_STORAGE_KEY, String(nextValue));
+      return nextValue;
+    });
+  };
+
   const isDarkMode = theme === "dark";
+  const showWideCartSidebar = isKioskMode;
+  const isTouchOptimized = isTouchViewport || isKioskMode;
   const currentTime = now
     ? now.toLocaleTimeString("es-AR", {
         hour: "2-digit",
@@ -272,7 +369,13 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-white px-4 pb-[0.5cm] pt-[0.5cm] transition-colors duration-300 print:hidden sm:px-6 lg:px-8 xl:h-screen xl:overflow-hidden dark:bg-slate-950">
+    <main
+      className={`app-shell min-h-[100dvh] bg-white transition-colors duration-300 print:hidden dark:bg-slate-950 ${
+        isKioskMode
+          ? "px-2 pb-2 pt-2 sm:px-3 lg:px-4 xl:h-screen xl:overflow-hidden"
+          : "h-[100dvh] overflow-hidden px-4 pb-4 pt-4 sm:px-6 lg:px-8 xl:h-screen xl:overflow-hidden"
+      }`}
+    >
       {isOffline && (
         <div className="fixed left-0 right-0 top-0 z-[60] flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-center text-sm font-bold text-white shadow-md animate-pulse print:hidden">
           <span className="text-lg">!</span>
@@ -297,27 +400,47 @@ export default function Home() {
         onChange={handleImport}
       />
 
-      <div className="mx-auto max-w-[1600px] print:hidden xl:h-full">
-        <div className="grid gap-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_380px]">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-colors xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden dark:border-slate-800 dark:bg-slate-900/40">
+      <div className={`print:hidden ${isKioskMode ? "mx-auto max-w-none h-full xl:h-full" : "mx-auto h-full max-w-[1600px] xl:h-full"}`}>
+        <div
+          className={`grid ${
+            isKioskMode
+              ? "h-full gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,32vw)] 2xl:grid-cols-[minmax(0,1fr)_430px]"
+              : "h-full gap-4 xl:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"
+          }`}
+        >
+          <section
+            className={`rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-colors dark:border-slate-800 dark:bg-slate-900/40 ${
+              isKioskMode
+                ? "p-4 sm:p-5 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+                : "flex min-h-0 flex-col overflow-hidden p-4 sm:p-5 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden"
+            }`}
+          >
             <ProductList
               canManageProducts={user?.role === "admin"}
               onEditProduct={handleEditProduct}
+              isKioskMode={isKioskMode}
+              isTouchOptimized={isTouchOptimized}
               leadingContent={
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <Image
                     src="/logo.png"
                     alt="Logo La cucha de Hanna"
                     width={152}
                     height={152}
-                    className="h-24 w-24 object-contain sm:h-28 sm:w-28"
+                    className={`object-contain ${
+                      isKioskMode ? "h-20 w-20 sm:h-24 sm:w-24 lg:h-28 lg:w-28" : "h-16 w-16 sm:h-20 sm:w-20"
+                    }`}
                     priority
                   />
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                       Usuario activo
                     </p>
-                    <p className="mt-1 truncate text-lg font-black text-slate-900 sm:text-xl">
+                    <p
+                      className={`mt-1 truncate font-black text-slate-900 ${
+                        isKioskMode ? "text-xl sm:text-2xl" : "text-base sm:text-lg"
+                      }`}
+                    >
                       {user?.fullName ?? user?.username ?? "Sin usuario"}
                     </p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -333,15 +456,28 @@ export default function Home() {
                       >
                         {isOffline ? "Offline" : "Online"}
                       </span>
+                      {isKioskMode && (
+                        <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
+                          Kiosco
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
               }
               extraControls={
-                <div className="flex flex-col gap-2 xl:w-[170px] xl:items-stretch">
+                <div
+                  className={`flex flex-col gap-2 ${
+                    isKioskMode
+                      ? "lg:w-[210px] lg:items-stretch"
+                      : "w-full sm:w-auto sm:flex-row sm:flex-wrap xl:w-[170px] xl:flex-col xl:items-stretch"
+                  }`}
+                >
                   <button
                     onClick={() => setIsCartOpen(true)}
-                    className="relative rounded-full border border-blue-200 bg-blue-100 px-4 py-3 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-200 xl:hidden"
+                    className={`touch-target relative rounded-full border border-blue-200 bg-blue-100 px-4 py-3 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-200 ${
+                      showWideCartSidebar ? "lg:hidden" : "xl:hidden"
+                    }`}
                   >
                     Carrito
                     {cartCount > 0 && (
@@ -350,7 +486,7 @@ export default function Home() {
                       </span>
                     )}
                   </button>
-                  <div className="-mb-2 w-full -translate-y-[0.5cm] px-1 text-center">
+                  <div className={`w-full px-1 text-center ${isKioskMode ? "kiosk-secondary hidden" : "hidden xl:block"}`}>
                     <p className="text-[10px] font-medium capitalize text-slate-500 dark:text-slate-300">
                       {currentDate}
                     </p>
@@ -362,7 +498,9 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => setIsQuickMenuOpen((current) => !current)}
-                      className="flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                      className={`touch-target flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 ${
+                        isKioskMode ? "text-base" : "text-sm"
+                      }`}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
                         <path d="M4 7h16v2H4V7Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z" />
@@ -371,55 +509,72 @@ export default function Home() {
                     </button>
 
                     {isQuickMenuOpen && (
-                      <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_rgba(15,23,42,0.14)] dark:border-slate-600 dark:bg-slate-900">
+                      <div className="absolute right-0 top-full z-30 mt-2 max-h-[min(70vh,28rem)] w-56 overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_rgba(15,23,42,0.14)] dark:border-slate-600 dark:bg-slate-900">
                         <div className="grid gap-1">
                           <button
                             onClick={() => handleMenuAction(() => setIsShiftModalOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                            className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                           >
                             Turno
+                          </button>
+                          <button
+                            onClick={() => handleMenuAction(handleToggleKioskMode)}
+                            disabled={isKioskForcedByQuery}
+                            className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                          >
+                            {isKioskForcedByQuery
+                              ? "Modo kiosco fijado por URL"
+                              : isKioskMode
+                                ? "Desactivar modo kiosco"
+                                : "Activar modo kiosco"}
                           </button>
                           {user?.role === "admin" && (
                             <>
                               <button
                                 onClick={() => handleMenuAction(() => setIsUsersModalOpen(true))}
-                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Usuarios
                               </button>
                               <button
+                                onClick={() => handleMenuAction(() => setIsLocalesModalOpen(true))}
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                Locales
+                              </button>
+                              <button
                                 onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
-                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Resumen del mes
                               </button>
                               <button
                                 onClick={() => handleMenuAction(() => setIsWeeklySalesOpen(true))}
-                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Ventas 7 Dias
                               </button>
                               <button
                                 onClick={() => handleMenuAction(() => setIsTodaySalesOpen(true))}
-                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Ventas hoy
                               </button>
                               <button
                                 onClick={() => handleMenuAction(() => setIsStockCostOpen(true))}
-                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Coste de stock
                               </button>
                               <button
                                 onClick={() => handleMenuAction(() => setIsLowStockOpen(true))}
-                                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Reporte stock
                               </button>
                               <button
                                 onClick={() => handleMenuAction(handleNewProduct)}
-                                className="rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                                className="touch-target rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                               >
                                 + Nuevo Producto
                               </button>
@@ -427,16 +582,24 @@ export default function Home() {
                           )}
                           <button
                             onClick={() => handleMenuAction(() => setIsThermalPrinterOpen(true))}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
+                            className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                           >
                             Impresora termica
                           </button>
                           <button
                             onClick={() => handleMenuAction(() => void signOut())}
-                            className="rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
+                            className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
                           >
                             Cerrar sesion
                           </button>
+                          {user?.role === "admin" && (
+                            <button
+                              onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
+                              className="touch-target rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-left text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
+                            >
+                              Reset ventas
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}
@@ -449,6 +612,8 @@ export default function Home() {
           <CartSidebar
             currentUser={user}
             isDarkMode={isDarkMode}
+            isKioskMode={isKioskMode}
+            showWideLayout={showWideCartSidebar}
             onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
           />
         </div>
@@ -456,11 +621,31 @@ export default function Home() {
 
       {isModalOpen && (
         <ProductFormModal
-          key={editingProduct?.id ?? "new"}
+          key={`${editingProduct?.id ?? "new"}-${preferredProductLocalId ?? "no-local"}-${(availableLocales ?? []).length}`}
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setIsModalOpen(false);
+            setPreferredProductLocalId(null);
+          }}
           productToEdit={editingProduct}
           currentUser={user}
+          preferredLocalId={preferredProductLocalId}
+        />
+      )}
+
+      {isProductLocalSelectorOpen && (
+        <ProductLocalSelectorModal
+          isOpen={isProductLocalSelectorOpen}
+          onClose={() => setIsProductLocalSelectorOpen(false)}
+          onContinue={(localId) => {
+            setPreferredProductLocalId(localId);
+            setIsProductLocalSelectorOpen(false);
+            setIsModalOpen(true);
+          }}
+          onCreateLocal={() => {
+            setIsProductLocalSelectorOpen(false);
+            setIsLocalesModalOpen(true);
+          }}
         />
       )}
 
@@ -513,6 +698,20 @@ export default function Home() {
           isOpen={isUsersModalOpen}
           onClose={() => setIsUsersModalOpen(false)}
           currentUsername={user?.username}
+        />
+      )}
+
+      {isLocalesModalOpen && (
+        <LocalesModal
+          isOpen={isLocalesModalOpen}
+          onClose={() => setIsLocalesModalOpen(false)}
+          onLocalCreated={(localId) => {
+            if ((availableLocales?.length ?? 0) === 0) {
+              setPreferredProductLocalId(localId);
+              setIsLocalesModalOpen(false);
+              setIsModalOpen(true);
+            }
+          }}
         />
       )}
 

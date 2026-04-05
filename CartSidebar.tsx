@@ -6,21 +6,26 @@ import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
-import { ReceiptPrint } from "./ReceiptPrint";
 import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
-import { useReceiptPrinting } from "./useReceiptPrinting";
 
 interface CartSidebarProps {
   currentUser: SessionUser | null;
   isDarkMode: boolean;
+  isKioskMode: boolean;
+  showWideLayout: boolean;
   onToggleTheme: () => void;
 }
 
-export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSidebarProps) {
+export function CartSidebar({
+  currentUser,
+  isDarkMode,
+  isKioskMode,
+  showWideLayout,
+  onToggleTheme,
+}: CartSidebarProps) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-  const { printingOrder, queuePrint, handleReceiptReady } = useReceiptPrinting();
   const activeShift = useLiveQuery(async () => {
     if (!currentUser) {
       return undefined;
@@ -104,20 +109,17 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
     }
 
     try {
-      const result = await finalizeLocalOrder({
+      await finalizeLocalOrder({
         cartItems,
         total,
         paymentMethod: paymentMethod ?? "cash",
         clientId: selectedClientId,
+        generatePdf: false,
       });
 
       setIsPaymentDialogOpen(false);
       setSelectedClientId(null);
       showToast("Venta procesada con exito.", "success");
-
-      if (result.order) {
-        queuePrint(result.order);
-      }
     } catch (error) {
       console.error("Error al finalizar el pedido:", error);
       showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
@@ -126,17 +128,23 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
 
   return (
     <>
-      <aside className="hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:overflow-hidden xl:rounded-[2rem] xl:border xl:border-slate-200 xl:bg-white xl:p-5 xl:shadow-[0_18px_40px_rgba(15,23,42,0.08)] dark:bg-slate-900 dark:border-slate-800 print:hidden transition-colors duration-300">
+      <aside
+        className={`hidden min-h-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 print:hidden ${
+          showWideLayout ? "lg:flex lg:h-full lg:p-3 xl:p-4" : "xl:flex xl:h-full xl:p-5"
+        }`}
+      >
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+            <h2 className={`font-black text-slate-900 dark:text-slate-100 ${isKioskMode ? "text-[1.9rem]" : "text-2xl"}`}>
               {cartItems?.length || 0} producto{(cartItems?.length || 0) === 1 ? "" : "s"}
             </h2>
           </div>
           <button
             type="button"
             onClick={onToggleTheme}
-            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50"
+            className={`touch-target flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 ${
+              isKioskMode ? "py-3 text-base" : "py-2 text-sm"
+            } font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50`}
             aria-pressed={isDarkMode}
             aria-label="Cambiar modo oscuro"
           >
@@ -182,7 +190,7 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
           </button>
         </div>
 
-        <div className="mt-4 flex-1 overflow-y-auto pr-1">
+        <div className={`flex-1 overflow-y-auto pr-1 ${isKioskMode ? "mt-3" : "mt-4"}`}>
           {!cartItems || cartItems.length === 0 ? (
             <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-[1.6rem] border border-dashed border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/20 px-6 text-center">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -193,24 +201,26 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className={`${isKioskMode ? "space-y-1.5" : "space-y-2"}`}>
               {cartItems.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[1.2rem] border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/40 px-2.5 py-2"
+                  className={`rounded-[1.2rem] border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/40 ${
+                    isKioskMode ? "px-3 py-3" : "px-2.5 py-2"
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <h3 className="truncate text-[13px] font-bold leading-tight text-slate-900 dark:text-slate-100">
+                        <h3 className={`truncate font-bold leading-tight text-slate-900 dark:text-slate-100 ${isKioskMode ? "text-[15px]" : "text-[13px]"}`}>
                           {item.name}
                         </h3>
-                        <p className="shrink-0 text-[13px] font-bold text-slate-900 dark:text-slate-100">
+                        <p className={`shrink-0 font-bold text-slate-900 dark:text-slate-100 ${isKioskMode ? "text-[15px]" : "text-[13px]"}`}>
                           ${getLineTotal(item).toLocaleString("es-AR")}
                         </p>
                       </div>
                       <div className="mt-1 flex items-center justify-between gap-2">
-                        <p className="text-[11px] text-slate-500">
+                        <p className={`text-slate-500 ${isKioskMode ? "text-xs" : "text-[11px]"}`}>
                           ${item.price.toLocaleString("es-AR")}
                           {item.stockUnit === "kg"
                             ? " / kg"
@@ -224,11 +234,17 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
                               item.id &&
                               handleUpdateQuantity(item.id, -(item.step ?? getQuantityStep(item.stockUnit)))
                             }
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-600"
+                            className={`flex items-center justify-center rounded-full border border-slate-200 bg-white font-bold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 ${
+                              isKioskMode ? "h-9 w-9 text-sm" : "h-7 w-7 text-xs"
+                            }`}
                           >
                             -
                           </button>
-                          <span className="min-w-[5rem] rounded-full bg-white dark:bg-slate-800 px-2.5 py-1.5 text-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                          <span
+                            className={`min-w-[5rem] rounded-full bg-white px-2.5 text-center font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200 ${
+                              isKioskMode ? "py-2 text-xs" : "py-1.5 text-[11px]"
+                            }`}
+                          >
                             {formatQuantity(item.quantity, item.stockUnit)}
                           </span>
                           <button
@@ -237,7 +253,9 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
                               handleUpdateQuantity(item.id, item.step ?? getQuantityStep(item.stockUnit))
                             }
                             disabled={item.quantity >= item.stock}
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-600 disabled:opacity-50"
+                            className={`flex items-center justify-center rounded-full border border-slate-200 bg-white font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 ${
+                              isKioskMode ? "h-9 w-9 text-sm" : "h-7 w-7 text-xs"
+                            }`}
                           >
                             +
                           </button>
@@ -249,7 +267,7 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
                   <div className="mt-1 flex items-center justify-end">
                     <button
                       onClick={() => item.id && db.cart.delete(item.id)}
-                      className="text-[11px] font-semibold text-red-500 transition-colors hover:text-red-600"
+                      className={`font-semibold text-red-500 transition-colors hover:text-red-600 ${isKioskMode ? "text-xs" : "text-[11px]"}`}
                     >
                       Quitar
                     </button>
@@ -260,8 +278,12 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
           )}
         </div>
 
-        <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
-          <div className="rounded-[1.5rem] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+        <div className={`border-t border-slate-100 dark:border-slate-800 ${isKioskMode ? "mt-3 pt-3" : "mt-4 pt-4"}`}>
+          <div
+            className={`rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-800 ${
+              isKioskMode ? "px-3 py-3" : "px-4 py-4"
+            }`}
+          >
             <ClientSelector
               value={selectedClientId}
               onChange={setSelectedClientId}
@@ -272,24 +294,34 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
                 Abri un turno desde el menu para habilitar el cobro.
               </p>
             )}
-            <div className="mt-5 flex items-end justify-between gap-3">
-              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Total a cobrar</span>
-              <span className="text-3xl font-black text-slate-900 dark:text-slate-50">
+            <div
+              className={`flex items-end justify-between gap-3 ${
+                isKioskMode ? "mt-3" : "mt-5"
+              }`}
+            >
+              <span className={`${isKioskMode ? "text-xs" : "text-sm"} font-medium text-slate-500 dark:text-slate-400`}>
+                Total a cobrar
+              </span>
+              <span className={`${isKioskMode ? "text-[2.2rem]" : "text-3xl"} font-black text-slate-900 dark:text-slate-50`}>
                 ${total.toLocaleString("es-AR")}
               </span>
             </div>
-            <div className="mt-4 grid gap-2">
+            <div className={`grid ${isKioskMode ? "mt-3 gap-1.5" : "mt-4 gap-2"}`}>
               <button
                 onClick={() => setIsPaymentDialogOpen(true)}
                 disabled={!cartItems || cartItems.length === 0 || !hasOpenShift}
-                className="w-full rounded-2xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-slate-700"
+                className={`touch-target w-full rounded-2xl bg-blue-500 px-4 font-semibold text-white transition-colors hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-slate-700 ${
+                  isKioskMode ? "py-3 text-base" : "py-3 text-sm"
+                }`}
               >
                 {hasOpenShift ? "Cobrar" : "Abrir turno para cobrar"}
               </button>
               <button
                 onClick={handleClearCart}
                 disabled={!cartItems || cartItems.length === 0}
-                className="w-full rounded-2xl border border-slate-200 dark:border-slate-600 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`w-full rounded-2xl border border-slate-200 px-4 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 ${
+                  isKioskMode ? "py-2 text-xs" : "py-2 text-xs"
+                }`}
               >
                 Vaciar carrito
               </button>
@@ -297,13 +329,6 @@ export function CartSidebar({ currentUser, isDarkMode, onToggleTheme }: CartSide
           </div>
         </div>
       </aside>
-
-      <ReceiptPrint
-        order={printingOrder}
-        onReadyToPrint={() => {
-          void handleReceiptReady();
-        }}
-      />
 
       <PaymentMethodDialog
         isOpen={isPaymentDialogOpen}

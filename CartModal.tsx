@@ -6,10 +6,8 @@ import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
-import { ReceiptPrint } from "./ReceiptPrint";
 import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
-import { useReceiptPrinting } from "./useReceiptPrinting";
 
 interface CartModalProps {
   currentUser: SessionUser | null;
@@ -23,7 +21,6 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const { printingOrder, queuePrint, handleReceiptReady } = useReceiptPrinting();
   const activeShift = useLiveQuery(async () => {
     if (!currentUser) {
       return undefined;
@@ -125,12 +122,13 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
     }
 
     try {
-      const result = await finalizeLocalOrder({
+      await finalizeLocalOrder({
         cartItems,
         total,
         notes,
         paymentMethod: paymentMethod ?? "cash",
         clientId: selectedClientId,
+        generatePdf: false,
       });
 
       setNotes("");
@@ -138,18 +136,10 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
       setIsPaymentDialogOpen(false);
       showToast("Venta procesada con exito", "success");
       setActiveTab("orders");
-
-      if (result.order) {
-        queuePrint(result.order);
-      }
     } catch (error) {
       console.error("Error al finalizar el pedido:", error);
       showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
     }
-  };
-
-  const handlePrint = (order: Order) => {
-    queuePrint(order);
   };
 
   const handleClearCart = async () => {
@@ -331,13 +321,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
                         &quot;{order.notes}&quot;
                       </div>
                     )}
-                    <div className="mt-3 flex items-center justify-between border-t border-amber-200 pt-2">
-                      <button
-                        onClick={() => handlePrint(order)}
-                        className="flex items-center gap-1 rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
-                      >
-                        Imprimir Recibo
-                      </button>
+                    <div className="mt-3 flex items-center justify-end border-t border-amber-200 pt-2">
                       <div className="text-lg font-bold">Total: ${order.total.toLocaleString()}</div>
                     </div>
                   </div>
@@ -347,7 +331,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
           )}
         </div>
 
-        {activeTab === "cart" && cartItems && cartItems.length > 0 && !printingOrder && (
+        {activeTab === "cart" && cartItems && cartItems.length > 0 && (
           <div className="mt-6 border-t pt-4">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-gray-600">Total:</span>
@@ -370,13 +354,6 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
             </div>
           </div>
         )}
-
-        <ReceiptPrint
-          order={printingOrder}
-          onReadyToPrint={() => {
-            void handleReceiptReady();
-          }}
-        />
       </div>
 
       <PaymentMethodDialog

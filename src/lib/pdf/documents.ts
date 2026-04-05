@@ -7,6 +7,12 @@ function formatCurrency(value: number) {
   return `$${Math.round(value).toLocaleString("es-AR")}`;
 }
 
+function formatSignedCurrency(value: number) {
+  const roundedValue = Math.round(value);
+  const absolute = Math.abs(roundedValue).toLocaleString("es-AR");
+  return roundedValue < 0 ? `-$${absolute}` : `$${absolute}`;
+}
+
 function formatDateTime(value: number) {
   return new Date(value).toLocaleString("es-AR", {
     day: "2-digit",
@@ -239,6 +245,8 @@ export async function renderShiftPdf({
     `Cierre: ${shift.closedAt ? formatDateTime(shift.closedAt) : "Sin cierre"}`,
     `Caja inicial: ${formatCurrency(shift.openingCash)}`,
     `Caja esperada: ${formatCurrency(shift.expectedCash ?? shift.openingCash)}`,
+    `Caja contada: ${formatCurrency(shift.countedCash ?? shift.expectedCash ?? shift.openingCash)}`,
+    `Diferencia: ${formatSignedCurrency(shift.cashDifference ?? 0)}`,
     `Ventas: ${formatCurrency(shift.totalSales ?? 0)}`,
     `Pedidos: ${(shift.orderCount ?? orders.length).toLocaleString("es-AR")}`,
   ];

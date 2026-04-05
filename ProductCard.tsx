@@ -6,6 +6,7 @@ import { formatPriceLabel, formatQuantity } from "./saleUtils";
 
 interface ProductCardProps {
   canManageProducts?: boolean;
+  isKioskMode?: boolean;
   product: Product;
   isSelling: boolean;
   onToggleSale: () => void;
@@ -15,21 +16,47 @@ function getAdaptiveFontSize(text: string, max: number, min: number, slope: numb
   return `${Math.max(min, max - Math.max(0, text.length - 8) * slope).toFixed(2)}px`;
 }
 
-export function ProductCard({ canManageProducts = false, product, isSelling, onToggleSale }: ProductCardProps) {
+export function ProductCard({
+  canManageProducts = false,
+  isKioskMode = false,
+  product,
+  isSelling,
+  onToggleSale,
+}: ProductCardProps) {
   const blobUrl = useMemo(
     () => (product.imageBlob ? URL.createObjectURL(product.imageBlob) : null),
     [product.imageBlob],
   );
   const displayUrl = blobUrl || product.imageUrl;
   const priceLabel = formatPriceLabel(product);
-  const displayedStock = canManageProducts ? product.globalStock ?? product.stock : product.stock;
+  const calculatedGlobalStock =
+    product.localStocks && product.localStocks.length > 0
+      ? product.localStocks.reduce((acc, localStock) => acc + localStock.stock, 0)
+      : undefined;
+  const displayedStock = canManageProducts
+    ? calculatedGlobalStock ?? product.globalStock ?? product.stock
+    : product.stock > 0
+      ? product.stock
+      : product.localStocks?.length === 1
+        ? product.localStocks[0].stock
+        : product.stock;
   const stockBadgeLabel = formatQuantity(displayedStock, product.stockUnit);
   const lowStockThreshold = canManageProducts
     ? product.globalLowStockAlertThreshold ?? product.lowStockAlertThreshold ?? 5
     : product.lowStockAlertThreshold ?? 5;
   const isLowStock = displayedStock > 0 && displayedStock <= lowStockThreshold;
-  const nameFontSize = getAdaptiveFontSize(product.name, 11.5, 8.5, 0.12);
-  const priceFontSize = getAdaptiveFontSize(priceLabel, 13.5, 10, 0.1);
+  const nameFontSize = getAdaptiveFontSize(product.name, isKioskMode ? 13.5 : 11.5, isKioskMode ? 9.5 : 8.5, 0.12);
+  const priceFontSize = getAdaptiveFontSize(priceLabel, isKioskMode ? 15.5 : 13.5, isKioskMode ? 11.5 : 10, 0.1);
+  const visibleLocalStocks =
+    product.localStocks
+      ?.filter((localStock) => localStock.stock > 0)
+      .sort((a, b) => b.stock - a.stock) ?? [];
+  const stockBadgeClasses =
+    displayedStock <= 0
+      ? "border-red-200 bg-gradient-to-br from-red-500 via-red-500 to-rose-600 text-white shadow-[0_14px_28px_rgba(239,68,68,0.35)]"
+      : isLowStock
+        ? "border-amber-200 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white shadow-[0_14px_28px_rgba(245,158,11,0.35)]"
+        : "border-emerald-200 bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-500 text-white shadow-[0_14px_28px_rgba(16,185,129,0.3)]";
 
   useEffect(() => {
     return () => {
@@ -41,7 +68,11 @@ export function ProductCard({ canManageProducts = false, product, isSelling, onT
 
   return (
     <div
-      className={`group relative mx-auto w-full max-w-[188px] cursor-pointer overflow-hidden rounded-[1.5rem] border border-blue-200/80 bg-[rgba(59,130,246,0.14)] shadow-[0_14px_30px_rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
+      className={`group relative mx-auto w-full cursor-pointer overflow-hidden border border-blue-200/80 bg-[rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
+        isKioskMode
+          ? "max-w-[220px] rounded-[1.75rem] shadow-[0_18px_34px_rgba(59,130,246,0.18)]"
+          : "max-w-[188px] rounded-[1.5rem] shadow-[0_14px_30px_rgba(59,130,246,0.14)]"
+      } ${
         isSelling ? "shadow-md ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900" : ""
       }`}
       onClick={onToggleSale}
@@ -54,22 +85,31 @@ export function ProductCard({ canManageProducts = false, product, isSelling, onT
       role="button"
       tabIndex={0}
     >
-      <div className="flex flex-col gap-1.5 p-1.5">
+      <div className={`flex flex-col ${isKioskMode ? "gap-2 p-2" : "gap-1.5 p-1.5"}`}>
         <div
-          className={`absolute right-2 top-2 z-10 rounded-full px-2 py-1 text-[9px] font-bold shadow-sm transition-transform group-hover:scale-105 ${
-            displayedStock <= 0
-              ? "bg-red-500 text-white"
-              : isLowStock
-                ? "bg-amber-500 text-white"
-                : "bg-white/95 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-          }`}
+          className={`absolute right-2 top-2 z-10 flex items-center gap-1.5 border font-bold tracking-[0.02em] transition-transform group-hover:scale-105 ${
+            isKioskMode ? "rounded-[1rem] px-3 py-2" : "rounded-[0.95rem] px-2.5 py-1.5"
+          } ${stockBadgeClasses}`}
           title={canManageProducts ? "Stock global" : "Stock del local"}
         >
-          {displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
+          <span className={`${isKioskMode ? "text-[9px]" : "text-[8px]"} uppercase tracking-[0.18em] text-white/80`}>
+            Stock
+          </span>
+          <span className={`${isKioskMode ? "text-[11px]" : "text-[10px]"} font-black leading-none`}>
+            {displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
+          </span>
         </div>
 
-        <div className="relative flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1.05rem] bg-white shadow-inner dark:bg-slate-800/30">
-          <div className="flex h-[9.45rem] w-[9.45rem] items-center justify-center p-2 transition-transform duration-500 group-hover:scale-110">
+        <div
+          className={`relative flex items-center justify-center overflow-hidden bg-white shadow-inner dark:bg-slate-800/30 ${
+            isKioskMode ? "min-h-[11.5rem] rounded-[1.25rem]" : "min-h-[10rem] rounded-[1.05rem]"
+          }`}
+        >
+          <div
+            className={`flex items-center justify-center p-2 transition-transform duration-500 group-hover:scale-110 ${
+              isKioskMode ? "h-[10.8rem] w-[10.8rem]" : "h-[9.45rem] w-[9.45rem]"
+            }`}
+          >
             {displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -86,8 +126,12 @@ export function ProductCard({ canManageProducts = false, product, isSelling, onT
           </div>
         </div>
 
-        <div className="flex min-h-[2.55rem] flex-col justify-center rounded-[1rem] border border-white/40 bg-white/60 px-2 pb-1.5 pt-1.5 text-center dark:border-slate-700 dark:bg-slate-800/45">
-          <div className="flex min-h-[1.55rem] items-center justify-center">
+        <div
+          className={`flex flex-col justify-center border border-white/40 bg-white/60 text-center dark:border-slate-700 dark:bg-slate-800/45 ${
+            isKioskMode ? "min-h-[3.4rem] rounded-[1.2rem] px-3 pb-2 pt-2" : "min-h-[2.55rem] rounded-[1rem] px-2 pb-1.5 pt-1.5"
+          }`}
+        >
+          <div className={`flex items-center justify-center ${isKioskMode ? "min-h-[1.9rem]" : "min-h-[1.55rem]"}`}>
             <h3
               className="line-clamp-2 pb-[0.15rem] font-bold text-slate-800 dark:text-slate-100"
               style={{
@@ -104,17 +148,17 @@ export function ProductCard({ canManageProducts = false, product, isSelling, onT
           >
             {priceLabel}
           </p>
-          {canManageProducts && (product.localStocks?.length ?? 0) > 0 && (
-            <div className="mt-1 flex flex-wrap justify-center gap-1">
-              {product.localStocks?.map((localStock) => (
+          {canManageProducts && visibleLocalStocks.length > 0 && (
+            <div className={`mt-1 flex flex-wrap justify-center ${isKioskMode ? "gap-1.5" : "gap-1"}`}>
+              {visibleLocalStocks.map((localStock) => (
                 <span
                   key={localStock.localId}
-                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                  className={`rounded-full border px-2 py-1 text-[9px] font-bold shadow-sm ${
                     localStock.stock <= 0
-                      ? "bg-red-100 text-red-700"
+                      ? "border-red-200 bg-red-100 text-red-700"
                       : localStock.stock <= (localStock.lowStockAlertThreshold ?? 5)
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-slate-100 text-slate-600"
+                        ? "border-amber-200 bg-amber-100 text-amber-800"
+                        : "border-emerald-200 bg-emerald-100 text-emerald-800"
                   }`}
                   title={`${localStock.localName}: ${formatQuantity(localStock.stock, product.stockUnit)}`}
                 >

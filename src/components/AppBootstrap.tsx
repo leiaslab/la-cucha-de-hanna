@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { syncRemoteSnapshot } from "../lib/api-client";
 
 async function syncSilently() {
@@ -11,16 +11,52 @@ async function syncSilently() {
   }
 }
 
+async function clearLegacyOfflineArtifacts() {
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+
+    if ("caches" in window) {
+      const cacheKeys = await window.caches.keys();
+      await Promise.all(cacheKeys.map((cacheKey) => window.caches.delete(cacheKey)));
+    }
+  } catch (error) {
+    console.error("No se pudieron limpiar caches viejos del navegador:", error);
+  }
+}
+
 export function AppBootstrap({ children }: { children: React.ReactNode }) {
+  const isSyncingRef = useRef(false);
+
   useEffect(() => {
-    void syncSilently();
+    const syncIfIdle = async () => {
+      if (isSyncingRef.current) {
+        return;
+      }
+
+      isSyncingRef.current = true;
+
+      try {
+        await syncSilently();
+      } finally {
+        isSyncingRef.current = false;
+      }
+    };
+
+    void clearLegacyOfflineArtifacts().finally(() => {
+      void syncIfIdle();
+    });
 
     const handleFocus = () => {
-      void syncSilently();
+      if (document.visibilityState === "visible") {
+        void syncIfIdle();
+      }
     };
 
     const intervalId = window.setInterval(() => {
-      void syncSilently();
+      void syncIfIdle();
     }, 60000);
 
     window.addEventListener("focus", handleFocus);

@@ -5,6 +5,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, type PaymentMethod, type StockUnit } from "./db";
 import { getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { formatQuantity, getLineTotal } from "./saleUtils";
+import { showToast } from "./Toast";
+import { resetSalesRemote } from "./src/lib/api-client";
+import type { SalesResetScope } from "./src/lib/pos-types";
 import { escapeReportHtml, openPrintWindow } from "./src/lib/report-print";
 import { useAuth } from "./src/components/AuthGate";
 
@@ -41,11 +44,35 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function getDayRange(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const startsAt = new Date(year, month - 1, day, 0, 0, 0, 0);
+  const endsAt = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+  return {
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+  };
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const startsAt = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const endsAt = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  return {
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+  };
+}
+
 export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
   const { user } = useAuth();
   const [selectedCashier, setSelectedCashier] = useState("all");
   const [selectedLocal, setSelectedLocal] = useState("all");
   const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(new Date()));
+  const [isResettingSales, setIsResettingSales] = useState(false);
+  const [resetAdminPassword, setResetAdminPassword] = useState("");
   const monthOrders = useLiveQuery(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -418,6 +445,54 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     );
   };
 
+  const handleResetSales = async (scope: SalesResetScope) => {
+    if (scope === "day" && selectedDayOrders.length === 0) {
+      showToast("No hay ventas en el dia elegido para borrar.", "info");
+      return;
+    }
+
+    if (scope === "month" && filteredMonthOrders.length === 0) {
+      showToast("No hay ventas del mes actual para borrar.", "info");
+      return;
+    }
+
+    if (!resetAdminPassword.trim()) {
+      showToast("Ingresa la clave del admin para confirmar el borrado.", "warning");
+      return;
+    }
+
+    try {
+      setIsResettingSales(true);
+
+      const result =
+        scope === "all"
+          ? await resetSalesRemote({ scope, adminPassword: resetAdminPassword })
+          : await resetSalesRemote({
+              scope,
+              adminPassword: resetAdminPassword,
+              ...(scope === "day" ? getDayRange(resolvedSelectedDateKey) : getCurrentMonthRange()),
+            });
+
+      if (result.deletedCount === 0) {
+        showToast("No habia ventas para borrar en ese rango.", "info");
+        return;
+      }
+
+      setResetAdminPassword("");
+      showToast(
+        `Se borraron ${result.deletedCount} venta${result.deletedCount === 1 ? "" : "s"} por $${result.deletedTotal.toLocaleString("es-AR")}. Arqueos ajustados: ${result.affectedShiftCount}.`,
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "No se pudieron borrar las ventas seleccionadas.",
+        "error",
+      );
+    } finally {
+      setIsResettingSales(false);
+    }
+  };
+
   if (!isOpen) {
     return null;
   }
@@ -489,6 +564,71 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+          )}
+
+          {user?.role === "admin" && (
+            <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/70 dark:bg-rose-950/20">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-rose-500">
+                    Reinicio de ventas
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    Usa esto solo si quieres volver a cero un dia, el mes actual o todo el historial.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                    Se eliminan ventas, detalles, movimientos y PDFs vinculados. El stock no se repone y los
+                    arqueos cerrados se recalculan.
+                  </p>
+                </div>
+                <div className="w-full max-w-xl">
+                  <label className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                    Clave del admin
+                  </label>
+                  <input
+                    type="password"
+                    value={resetAdminPassword}
+                    onChange={(event) => setResetAdminPassword(event.target.value)}
+                    placeholder="Ingresa tu clave para confirmar"
+                    className="mt-2 block w-full rounded-xl border border-rose-200 bg-white p-3 text-sm shadow-sm outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-900 dark:bg-slate-900 dark:text-slate-100"
+                    name="admin-reset-secret"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                  />
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Para borrar ventas ahora se valida la clave del admin actual en lugar de pedir texto manual.
+                  </p>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleResetSales("day")}
+                      disabled={isResettingSales}
+                      className="rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-300 dark:hover:bg-slate-800"
+                    >
+                      {isResettingSales ? "Procesando..." : "Borrar dia elegido"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleResetSales("month")}
+                      disabled={isResettingSales}
+                      className="rounded-2xl border border-rose-300 bg-white px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-slate-800"
+                    >
+                      {isResettingSales ? "Procesando..." : "Borrar mes actual"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleResetSales("all")}
+                      disabled={isResettingSales}
+                      className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isResettingSales ? "Procesando..." : "Borrar todo"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

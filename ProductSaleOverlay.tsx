@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type Product } from "./db";
 import { ProductSaleConfigurator } from "./ProductSaleConfigurator";
 import { formatPriceLabel, formatQuantity } from "./saleUtils";
@@ -10,7 +10,7 @@ interface ProductSaleOverlayProps {
   product: Product;
   onClose: () => void;
   onEdit: (product: Product) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: number) => Promise<void>;
 }
 
 export function ProductSaleOverlay({
@@ -20,12 +20,17 @@ export function ProductSaleOverlay({
   onEdit,
   onDelete,
 }: ProductSaleOverlayProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
   const blobUrl = useMemo(
     () => (product.imageBlob ? URL.createObjectURL(product.imageBlob) : null),
     [product.imageBlob],
   );
   const displayUrl = blobUrl || product.imageUrl;
   const globalStock = product.globalStock ?? product.stock;
+  const visibleLocalStocks =
+    product.localStocks
+      ?.filter((localStock) => localStock.stock > 0)
+      .sort((a, b) => b.stock - a.stock) ?? [];
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -65,15 +70,21 @@ export function ProductSaleOverlay({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (product.id && confirm(`Estas seguro de eliminar "${product.name}"?`)) {
-                      onDelete(product.id);
-                      onClose();
+                      try {
+                        setIsDeleting(true);
+                        await onDelete(product.id);
+                        onClose();
+                      } finally {
+                        setIsDeleting(false);
+                      }
                     }
                   }}
+                  disabled={isDeleting}
                   className="rounded-2xl border border-red-200 bg-red-50 px-3.5 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100"
                 >
-                  Eliminar
+                  {isDeleting ? "Borrando..." : "Eliminar"}
                 </button>
               </>
             )}
@@ -140,13 +151,13 @@ export function ProductSaleOverlay({
                 )}
               </div>
 
-              {canManageProducts && (product.localStocks?.length ?? 0) > 0 && (
+              {canManageProducts && visibleLocalStocks.length > 0 && (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Stock por local
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {product.localStocks?.map((localStock) => (
+                    {visibleLocalStocks.map((localStock) => (
                       <span
                         key={localStock.localId}
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${

@@ -6,6 +6,10 @@
   --foreground: #0f172a;
 }
 
+html {
+  font-size: clamp(15px, 0.18vw + 14px, 18px);
+}
+
 html.dark {
   --background: #08111f;
   --foreground: #edf2ff;
@@ -19,10 +23,33 @@ html.dark {
 }
 
 body {
+  min-height: 100dvh;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   transition: background-color 160ms ease, color 160ms ease;
+}
+
+.app-shell {
+  min-height: 100dvh;
+}
+
+.touch-target {
+  min-height: 3rem;
+}
+
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 3.4rem;
+  }
+}
+
+html[data-kiosk-mode="true"] body {
+  overflow: hidden;
+}
+
+html[data-kiosk-mode="true"] .kiosk-secondary {
+  display: none !important;
 }
 
 html.dark body {

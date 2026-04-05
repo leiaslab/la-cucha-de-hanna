@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -19,18 +19,34 @@ export const showToast = (message: string, type: ToastType = "info") => {
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const nextToastIdRef = useRef(1);
 
   useEffect(() => {
     const handleToast = (event: Event) => {
       const { message, type } = (
         event as CustomEvent<{ message: string; type: ToastType }>
       ).detail;
-      const id = Date.now();
-      setToasts((prev) => [...prev, { id, message, type }]);
 
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 3000);
+      let toastId = 0;
+      let shouldScheduleDismiss = false;
+
+      setToasts((current) => {
+        const existingToast = current.find((toast) => toast.message === message && toast.type === type);
+        if (existingToast) {
+          toastId = existingToast.id;
+          return current;
+        }
+
+        toastId = nextToastIdRef.current++;
+        shouldScheduleDismiss = true;
+        return [...current.slice(-2), { id: toastId, message, type }];
+      });
+
+      if (shouldScheduleDismiss) {
+        window.setTimeout(() => {
+          setToasts((current) => current.filter((toast) => toast.id !== toastId));
+        }, 2600);
+      }
     };
 
     window.addEventListener("petshop-toast", handleToast);
@@ -42,7 +58,7 @@ export function ToastContainer() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`px-4 py-3 rounded-xl shadow-lg text-white font-medium animate-in fade-in slide-in-from-bottom-4 duration-300 flex items-center justify-between ${
+          className={`flex items-center justify-between rounded-xl px-4 py-3 font-medium text-white shadow-lg ${
             toast.type === "error"
               ? "bg-red-600"
               : toast.type === "success"
@@ -52,12 +68,19 @@ export function ToastContainer() {
                   : "bg-blue-600"
           }`}
         >
-          <div className="flex items-center gap-2">
-            <span>{toast.type === "error" ? "🚫" : toast.type === "success" ? "✅" : "ℹ️"}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-black">
+              {toast.type === "error" ? "!" : toast.type === "success" ? "OK" : "i"}
+            </span>
             <p className="text-sm">{toast.message}</p>
           </div>
-          <button onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))} className="ml-4 opacity-70 hover:opacity-100">
-            ✕
+          <button
+            type="button"
+            onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}
+            className="ml-4 text-lg leading-none opacity-70 transition hover:opacity-100"
+            aria-label="Cerrar alerta"
+          >
+            x
           </button>
         </div>
       ))}

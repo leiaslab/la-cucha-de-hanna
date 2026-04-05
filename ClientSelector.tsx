@@ -15,6 +15,7 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
 
@@ -59,6 +60,7 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
       setNewClientName("");
       setNewClientPhone("");
       setIsCreating(false);
+      setIsExpanded(false);
       showToast("Cliente creado con exito.", "success");
     } catch (error) {
       console.error("No se pudo crear el cliente:", error);
@@ -69,9 +71,21 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
   return (
     <div
       className={`rounded-2xl border border-slate-200 bg-white ${
-        compact ? "px-3 py-3" : "px-4 py-4"
+        compact ? "px-3 py-2.5" : "px-4 py-4"
       } dark:border-slate-700 dark:bg-slate-900/50`}
     >
+      {compact && !isExpanded ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(true)}
+            className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Cliente
+          </button>
+        </div>
+      ) : (
+        <>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -83,17 +97,30 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
         </div>
         <button
           type="button"
-          onClick={() => setIsCreating((current) => !current)}
+          onClick={() => {
+            if (compact) {
+              setIsExpanded(false);
+              setIsCreating(false);
+              return;
+            }
+
+            setIsCreating((current) => !current);
+          }}
           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         >
-          {isCreating ? "Cancelar" : "Nuevo cliente"}
+          {compact ? "Cerrar" : isCreating ? "Cancelar" : "Nuevo cliente"}
         </button>
       </div>
 
       <div className="mt-3">
         <select
           value={value ?? ""}
-          onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)}
+          onChange={(event) => {
+            onChange(event.target.value ? Number(event.target.value) : null);
+            if (compact) {
+              setIsExpanded(false);
+            }
+          }}
           className="block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           disabled={isLoading}
         >
@@ -106,6 +133,18 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
           ))}
         </select>
       </div>
+
+      {!isCreating && (
+        <div className={`mt-3 ${compact ? "flex justify-center" : "flex justify-end"}`}>
+          <button
+            type="button"
+            onClick={() => setIsCreating(true)}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Nuevo cliente
+          </button>
+        </div>
+      )}
 
       {isCreating && (
         <div className="mt-3 grid gap-3">
@@ -130,7 +169,16 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
           >
             Guardar cliente
           </button>
+          <button
+            type="button"
+            onClick={() => setIsCreating(false)}
+            className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Cancelar
+          </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );

@@ -3,10 +3,12 @@ export type StockUnit = "unit" | "kg" | "liter";
 export type PaymentMethod = "cash" | "mercado_pago" | "transfer";
 export type ShiftStatus = "open" | "closed";
 export type AppRole = "admin" | "cajero";
+export type SalesResetScope = "day" | "month" | "all";
 
 export interface LocalRecord {
   id: number;
   name: string;
+  thermalPrinterEnabled?: boolean;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -82,6 +84,8 @@ export interface Shift {
   mercadoPagoSales?: number;
   transferSales?: number;
   expectedCash?: number;
+  countedCash?: number;
+  cashDifference?: number;
   openedByUserId?: number;
   closedByUserId?: number;
   localId?: number;
@@ -115,7 +119,7 @@ export interface AppUserInput {
   username: string;
   password: string;
   role: AppRole;
-  localeName: string;
+  localeId: number;
 }
 
 export interface AppUserUpdateInput {
@@ -124,7 +128,17 @@ export interface AppUserUpdateInput {
   password?: string;
   role?: AppRole;
   isActive?: boolean;
-  localeName?: string;
+  localeId?: number;
+}
+
+export interface LocalCreateInput {
+  name: string;
+  thermalPrinterEnabled?: boolean;
+}
+
+export interface LocalUpdateInput {
+  name?: string;
+  thermalPrinterEnabled?: boolean;
 }
 
 export interface ClientRecord {
@@ -162,6 +176,7 @@ export interface ProductInput {
   price: number;
   cost: number;
   stock: number;
+  preferredLocalId?: number;
   lowStockAlertThreshold: number;
   category: string;
   slug: string;
@@ -189,6 +204,16 @@ export interface CheckoutResult {
   pdf?: PdfGenerationResult | null;
 }
 
+export interface TicketEmailPayload {
+  email: string;
+  order: Order;
+  pdf?: PdfGenerationResult | null;
+}
+
+export interface TicketEmailResult {
+  id: string;
+}
+
 export interface ShiftOpenInput {
   openingCash: number;
   openingNote?: string;
@@ -196,7 +221,21 @@ export interface ShiftOpenInput {
 
 export interface ShiftCloseInput {
   closingNote?: string;
+  countedCash?: number;
   generatePdf?: boolean;
+}
+
+export interface SalesResetInput {
+  scope: SalesResetScope;
+  startsAt?: string;
+  endsAt?: string;
+  adminPassword?: string;
+}
+
+export interface SalesResetResult {
+  deletedCount: number;
+  deletedTotal: number;
+  affectedShiftCount: number;
 }
 
 export interface PdfGenerationResult {

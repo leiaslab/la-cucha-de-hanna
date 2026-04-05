@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AppRole, AppUser } from "./db";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db, type AppRole, type AppUser } from "./db";
 import {
   createAppUserRemote,
   deleteAppUserRemote,
   listAppUsersRemote,
-  syncRemoteSnapshot,
   updateAppUserRemote,
 } from "./src/lib/api-client";
 import { showToast } from "./Toast";
@@ -19,7 +19,7 @@ interface UsersModalProps {
 
 const initialFormState = {
   fullName: "",
-  localeName: "",
+  localeId: "",
   username: "",
   password: "",
   role: "cajero" as AppRole,
@@ -35,6 +35,13 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   const [isDeletingUserId, setIsDeletingUserId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const availableLocales = useLiveQuery(
+    () => db.locals.orderBy("name").toArray(),
+    [],
+  );
+
+  const sortUsers = (nextUsers: AppUser[]) =>
+    nextUsers.slice().sort((a, b) => a.createdAt - b.createdAt);
 
   const resetForm = () => {
     setEditingUser(null);
@@ -74,7 +81,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
     setEditingUser(user);
     setForm({
       fullName: user.fullName,
-      localeName: user.localeName ?? "",
+      localeId: user.localeId ? String(user.localeId) : "",
       username: user.username,
       password: "",
       role: user.role,
@@ -92,31 +99,38 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    const localeId = Number(form.localeId);
+
+    if (!Number.isFinite(localeId)) {
+      setError("Selecciona un local para el usuario.");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
       if (editingUser) {
-        await updateAppUserRemote(editingUser.id, {
+        const updatedUser = await updateAppUserRemote(editingUser.id, {
           fullName: form.fullName,
-          localeName: form.localeName,
+          localeId,
           username: form.username,
           password: form.password.trim() || undefined,
           role: form.role,
           isActive,
         });
-        await loadUsers();
-        await syncRemoteSnapshot().catch(() => undefined);
+        setUsers((current) =>
+          sortUsers(current.map((candidate) => (candidate.id === updatedUser.id ? updatedUser : candidate))),
+        );
         showToast("Usuario actualizado con exito.", "success");
       } else {
-        await createAppUserRemote({
+        const createdUser = await createAppUserRemote({
           fullName: form.fullName,
-          localeName: form.localeName,
+          localeId,
           username: form.username,
           password: form.password,
           role: form.role,
         });
-        await loadUsers();
-        await syncRemoteSnapshot().catch(() => undefined);
+        setUsers((current) => sortUsers([...current, createdUser]));
         showToast("Usuario creado con exito.", "success");
       }
 
@@ -184,7 +198,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
               Usuarios
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Crea accesos para cada local o computadora y controla quien entra como admin o cajero.
+              Los usuarios se asignan a un local, pero la creacion y administracion de locales se hace por separado.
             </p>
           </div>
           <button
@@ -302,8 +316,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
             <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
               Para cambiar o recuperar una clave: entra en editar o usa resetear clave, escribe una nueva y guarda.
             </div>
-
-            <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+            <form className="mt-5 space-y-4" onSubmit={handleSubmit} autoComplete="off" data-lpignore="true">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                   Nombre
@@ -321,14 +334,24 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                   Local
                 </label>
-                <input
-                  type="text"
-                  value={form.localeName}
-                  onChange={(event) => setForm((current) => ({ ...current, localeName: event.target.value }))}
+                <select
+                  value={form.localeId}
+                  onChange={(event) => setForm((current) => ({ ...current, localeId: event.target.value }))}
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  placeholder="Ej: Local Centro"
                   required
-                />
+                >
+                  <option value="">Selecciona un local</option>
+                  {(availableLocales ?? []).map((locale) => (
+                    <option key={locale.id} value={locale.id}>
+                      {locale.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {availableLocales && availableLocales.length > 0
+                    ? "El usuario quedara vinculado al local elegido."
+                    : "Primero crea un local desde el menu Locales para poder asignarlo."}
+                </p>
               </div>
 
               <div>
@@ -340,6 +363,12 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                   value={form.username}
                   onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  data-lpignore="true"
+                  data-1p-ignore="true"
                   required
                 />
               </div>
@@ -354,6 +383,10 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                     value={form.password}
                     onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
                     className="block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    name="user-secret"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     required={!editingUser}
                   />
                   <button

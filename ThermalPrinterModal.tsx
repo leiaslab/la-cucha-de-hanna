@@ -144,8 +144,8 @@ export function ThermalPrinterModal({ isOpen, onClose }: ThermalPrinterModalProp
               Impresora termica
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Esta configuracion se guarda solo en esta computadora. Para imprimir automatico
-              necesitas QZ Tray abierto.
+              Esta configuracion se guarda solo en esta computadora. El admin define desde
+              Locales si ese local puede imprimir o no; aca solo eliges la impresora de esta PC.
             </p>
           </div>
           <button
