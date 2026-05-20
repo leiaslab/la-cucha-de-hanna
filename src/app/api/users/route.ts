@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAppUser, listAppUsers, MissingAppUsersTableError } from "../../../lib/app-users";
 import { getCurrentSessionUser } from "../../../lib/auth-server";
+import { validatePasswordStrength } from "../../../lib/auth";
 import type { AppRole } from "../../../lib/pos-types";
 
 export const runtime = "nodejs";
@@ -70,8 +71,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Completa nombre, local, usuario y clave." }, { status: 400 });
     }
 
-    if (password.length < 4) {
-      return NextResponse.json({ error: "La clave debe tener al menos 4 caracteres." }, { status: 400 });
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     if (!isValidRole(role)) {

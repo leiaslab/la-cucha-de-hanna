@@ -15,7 +15,8 @@ export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as CheckoutPayload;
     const result = await createCheckout(payload, auth.user);
-    return NextResponse.json({ data: result }, { status: 201 });
+    const pdfFailed = payload.generatePdf === true && result.pdf == null;
+    return NextResponse.json({ data: { ...result, pdfFailed } }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       {

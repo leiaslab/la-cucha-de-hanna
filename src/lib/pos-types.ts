@@ -202,6 +202,7 @@ export interface CheckoutResult {
   updatedProducts: Product[];
   shift?: Shift | null;
   pdf?: PdfGenerationResult | null;
+  pdfFailed?: boolean;
 }
 
 export interface TicketEmailPayload {

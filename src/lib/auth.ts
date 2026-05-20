@@ -1,6 +1,7 @@
 export const APP_SESSION_COOKIE = "pepshop_session";
 const FALLBACK_USERNAME = "admin";
-const FALLBACK_PASSWORD = "0345";
+// Contraseña de acceso inicial — debe cambiarse en el primer uso
+const FALLBACK_PASSWORD = "12345678";
 const FALLBACK_FULL_NAME = "Administrador";
 
 export function normalizeUsername(value: string) {
@@ -15,6 +16,13 @@ export function getFallbackAdminCredentials() {
     username: normalizeUsername(username),
     password: password.trim(),
   };
+}
+
+export function validatePasswordStrength(password: string): string | null {
+  if (password.length < 8) return "La clave debe tener al menos 8 caracteres.";
+  if (!/[0-9]/.test(password)) return "La clave debe contener al menos un número.";
+  if (!/[A-Z]/.test(password)) return "La clave debe contener al menos una letra mayúscula.";
+  return null;
 }
 
 export function getFallbackAdminUser() {

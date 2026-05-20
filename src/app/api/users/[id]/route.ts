@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteAppUser, MissingAppUsersTableError, updateAppUser } from "../../../../lib/app-users";
 import { getCurrentSessionUser } from "../../../../lib/auth-server";
+import { validatePasswordStrength } from "../../../../lib/auth";
 import type { AppRole } from "../../../../lib/pos-types";
 
 export const runtime = "nodejs";
@@ -45,8 +46,11 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
       return NextResponse.json({ error: "Selecciona un rol valido." }, { status: 400 });
     }
 
-    if (body.password !== undefined && body.password.trim() !== "" && body.password.trim().length < 4) {
-      return NextResponse.json({ error: "La clave debe tener al menos 4 caracteres." }, { status: 400 });
+    if (body.password !== undefined && body.password.trim() !== "") {
+      const passwordError = validatePasswordStrength(body.password.trim());
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
+      }
     }
 
     const updated = await updateAppUser(userId, {

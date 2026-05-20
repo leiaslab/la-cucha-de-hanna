@@ -24,6 +24,8 @@ export function ShiftModal({
   const [openingCash, setOpeningCash] = useState("");
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
+  const [countedCash, setCountedCash] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const activeShift = useLiveQuery(async () => {
     const openShifts = await db.shifts.where("status").equals("open").toArray();
@@ -73,33 +75,51 @@ export function ShiftModal({
       return;
     }
 
-    await openShiftRemote({
-      openingCash: parsedOpeningCash,
-      openingNote: openingNote.trim() || undefined,
-    });
-
-    setOpeningCash("");
-    setOpeningNote("");
-    showToast("Turno abierto con exito.", "success");
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await openShiftRemote({
+        openingCash: parsedOpeningCash,
+        openingNote: openingNote.trim() || undefined,
+      });
+      setOpeningCash("");
+      setOpeningNote("");
+      showToast("Turno abierto con exito.", "success");
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo abrir el turno.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCloseShift = async () => {
-    if (!activeShift?.id) {
+    if (!activeShift?.id) return;
+
+    const parsedCountedCash = Number(countedCash);
+    if (!Number.isFinite(parsedCountedCash) || parsedCountedCash < 0) {
+      showToast("Ingresa el efectivo contado antes de cerrar.", "error");
       return;
     }
 
-    const result = await closeShiftRemote(activeShift.id, {
-      closingNote: closingNote.trim() || undefined,
-      generatePdf: true,
-    });
-
-    setClosingNote("");
-    if (result.pdf) {
-      downloadPdfResult(result.pdf);
+    setIsSubmitting(true);
+    try {
+      const result = await closeShiftRemote(activeShift.id, {
+        closingNote: closingNote.trim() || undefined,
+        countedCash: parsedCountedCash,
+        generatePdf: true,
+      });
+      setClosingNote("");
+      setCountedCash("");
+      if (result.pdf) {
+        downloadPdfResult(result.pdf);
+      }
+      showToast("Turno cerrado con exito.", "success");
+      onClose();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo cerrar el turno.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
-    showToast("Turno cerrado con exito.", "success");
-    onClose();
   };
 
   if (!isOpen) {
@@ -183,9 +203,10 @@ export function ShiftModal({
               <button
                 type="button"
                 onClick={() => void handleOpenShift()}
-                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                disabled={isSubmitting}
+                className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                Abrir turno
+                {isSubmitting ? "Abriendo..." : "Abrir turno"}
               </button>
             </div>
           </div>
@@ -272,27 +293,46 @@ export function ShiftModal({
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="closingNote" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Nota de cierre
-                </label>
-                <textarea
-                  id="closingNote"
-                  value={closingNote}
-                  onChange={(event) => setClosingNote(event.target.value)}
-                  rows={3}
-                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  placeholder="Opcional"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="countedCash" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Efectivo contado
+                  </label>
+                  <input
+                    id="countedCash"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={countedCash}
+                    onChange={(event) => setCountedCash(event.target.value)}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    placeholder="Ej: 25000"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label htmlFor="closingNote" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Nota de cierre
+                  </label>
+                  <textarea
+                    id="closingNote"
+                    value={closingNote}
+                    onChange={(event) => setClosingNote(event.target.value)}
+                    rows={3}
+                    className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    placeholder="Opcional"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={() => void handleCloseShift()}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+                  disabled={isSubmitting}
+                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
-                  Cerrar turno
+                  {isSubmitting ? "Cerrando..." : "Cerrar turno"}
                 </button>
               </div>
             </section>
