@@ -155,8 +155,9 @@ export function ProductSaleConfigurator({
             <input
               id={`weight-quantity-${product.id}`}
               type="number"
+              inputMode="decimal"
               min="0"
-              step="0.25"
+              step="any"
               value={displayedQuantityInput}
               onChange={(event) => {
                 setLastEditedWeightField("quantity");
@@ -174,8 +175,9 @@ export function ProductSaleConfigurator({
             <input
               id={`weight-amount-${product.id}`}
               type="number"
+              inputMode="decimal"
               min="0"
-              step="0.01"
+              step="any"
               value={displayedAmountInput}
               onChange={(event) => {
                 setLastEditedWeightField("amount");
