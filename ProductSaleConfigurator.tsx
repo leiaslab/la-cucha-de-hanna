@@ -63,7 +63,7 @@ export function ProductSaleConfigurator({
       ? lastEditedWeightField === "amount"
         ? amountInput === ""
           ? ""
-          : String(weightSale.quantity)
+          : String(roundQuantity(weightSale.quantity))
         : quantityInput
       : unitQuantityInput;
   const displayedAmountInput =
@@ -87,7 +87,7 @@ export function ProductSaleConfigurator({
     }
 
     const existing = await db.cart.where("productId").equals(product.id).first();
-    const nextQuantity = roundQuantity((existing?.quantity || 0) + selectedQuantity);
+    const nextQuantity = (existing?.quantity || 0) + selectedQuantity;
 
     if (!canSellQuantity(product.stock, nextQuantity, product.stockUnit)) {
       showToast("No hay stock suficiente para agregar esa cantidad al carrito.", "error");

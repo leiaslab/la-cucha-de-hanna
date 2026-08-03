@@ -38,7 +38,9 @@ export function calculateQuantityFromAmount(amount: number, pricePerKg: number) 
     return 0;
   }
 
-  return roundQuantity(amount / pricePerKg);
+  // Precisión completa: así (precio × cantidad) da el monto exacto que se ingresó.
+  // La cantidad se redondea solo para mostrar (formatQuantity / roundQuantity).
+  return amount / pricePerKg;
 }
 
 export function calculateAmountFromQuantity(quantity: number, pricePerKg: number) {
