@@ -165,6 +165,7 @@ export function ProductSaleConfigurator({
               }}
               className={inputClassName}
               placeholder="Ej: 1.5"
+              autoFocus
             />
           </div>
 
@@ -202,6 +203,7 @@ export function ProductSaleConfigurator({
               value={unitQuantityInput}
               onChange={(event) => setUnitQuantityInput(event.target.value)}
               className={inputClassName}
+              autoFocus
             />
           </div>
         </div>
@@ -240,7 +242,7 @@ export function ProductSaleConfigurator({
             compact ? "py-2.5" : "py-3"
           }`}
         >
-          Agregar al carrito
+          Agregar al carrito (Enter)
         </button>
         {onCancel && (
           <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { type PaymentMethod } from "./db";
 
 interface PaymentMethodDialogProps {
@@ -41,6 +42,58 @@ export function PaymentMethodDialog({
   onClose,
   onSelect,
 }: PaymentMethodDialogProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const selectedIndexRef = useRef(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = (selectedIndexRef.current + 1) % PAYMENT_OPTIONS.length;
+        selectedIndexRef.current = nextIndex;
+        setSelectedIndex(nextIndex);
+        return;
+      }
+
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const nextIndex =
+          (selectedIndexRef.current - 1 + PAYMENT_OPTIONS.length) % PAYMENT_OPTIONS.length;
+        selectedIndexRef.current = nextIndex;
+        setSelectedIndex(nextIndex);
+        return;
+      }
+
+      const numberIndex = Number(event.key) - 1;
+      if (numberIndex >= 0 && numberIndex < PAYMENT_OPTIONS.length) {
+        event.preventDefault();
+        onSelect(PAYMENT_OPTIONS[numberIndex].value);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        onSelect(PAYMENT_OPTIONS[selectedIndexRef.current].value);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose, onSelect]);
+
   if (!isOpen) {
     return null;
   }
@@ -51,6 +104,8 @@ export function PaymentMethodDialog({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="w-full max-w-lg rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-700 dark:bg-slate-900"
         onClick={(event) => event.stopPropagation()}
       >
@@ -62,7 +117,7 @@ export function PaymentMethodDialog({
             Como queres cobrar?
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-            Elegi una opcion para continuar con la venta.
+            Flechas para elegir, Enter para confirmar. Atajos: 1, 2 o 3.
           </p>
           <button
             type="button"
@@ -79,8 +134,11 @@ export function PaymentMethodDialog({
               key={option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              autoFocus={option.value === "cash"}
               className={`rounded-[1.6rem] border px-4 py-5 text-center transition-all hover:-translate-y-0.5 ${
+                selectedIndex === PAYMENT_OPTIONS.indexOf(option)
+                  ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900"
+                  : ""
+              } ${
                 option.value === "cash"
                   ? "border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50"
                   : option.value === "mercado_pago"

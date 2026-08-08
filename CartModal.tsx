@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
@@ -21,6 +21,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const checkoutInProgressRef = useRef(false);
   const activeShift = useLiveQuery(async () => {
     if (!currentUser) {
       return undefined;
@@ -111,7 +112,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   };
 
   const handleCheckout = async (paymentMethod: Order["paymentMethod"]) => {
-    if (!cartItems || cartItems.length === 0) {
+    if (!cartItems || cartItems.length === 0 || checkoutInProgressRef.current) {
       return;
     }
 
@@ -122,6 +123,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
     }
 
     try {
+      checkoutInProgressRef.current = true;
       await finalizeLocalOrder({
         cartItems,
         total,
@@ -139,6 +141,8 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
     } catch (error) {
       console.error("Error al finalizar el pedido:", error);
       showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
+    } finally {
+      checkoutInProgressRef.current = false;
     }
   };
 
@@ -347,9 +351,10 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
               <button
                 onClick={() => setIsPaymentDialogOpen(true)}
                 disabled={!hasOpenShift}
+                autoFocus
                 className="flex-[3] rounded-xl bg-green-600 py-3 font-bold text-white shadow-md transition-all active:scale-95 hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {hasOpenShift ? "Cobrar" : "Abrir turno"}
+                {hasOpenShift ? "Cobrar (Enter)" : "Abrir turno"}
               </button>
             </div>
           </div>

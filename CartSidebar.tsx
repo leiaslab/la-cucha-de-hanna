@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
@@ -26,6 +26,7 @@ export function CartSidebar({
 }: CartSidebarProps) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const checkoutInProgressRef = useRef(false);
   const activeShift = useLiveQuery(async () => {
     if (!currentUser) {
       return undefined;
@@ -98,7 +99,7 @@ export function CartSidebar({
   };
 
   const handleCheckout = async (paymentMethod: Order["paymentMethod"]) => {
-    if (!cartItems || cartItems.length === 0) {
+    if (!cartItems || cartItems.length === 0 || checkoutInProgressRef.current) {
       return;
     }
 
@@ -109,6 +110,7 @@ export function CartSidebar({
     }
 
     try {
+      checkoutInProgressRef.current = true;
       await finalizeLocalOrder({
         cartItems,
         total,
@@ -123,8 +125,38 @@ export function CartSidebar({
     } catch (error) {
       console.error("Error al finalizar el pedido:", error);
       showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
+    } finally {
+      checkoutInProgressRef.current = false;
     }
   };
+
+  useEffect(() => {
+    const handleKeyboardCheckout = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Enter" ||
+        isPaymentDialogOpen ||
+        !cartItems?.length ||
+        !hasOpenShift
+      ) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable ||
+        target?.matches("input, textarea, select, button, a") ||
+        document.querySelector('[role="dialog"], .fixed.inset-0')
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsPaymentDialogOpen(true);
+    };
+
+    window.addEventListener("keydown", handleKeyboardCheckout);
+    return () => window.removeEventListener("keydown", handleKeyboardCheckout);
+  }, [cartItems?.length, hasOpenShift, isPaymentDialogOpen]);
 
   return (
     <>
@@ -314,7 +346,7 @@ export function CartSidebar({
                   isKioskMode ? "py-3 text-base" : "py-3 text-sm"
                 }`}
               >
-                {hasOpenShift ? "Cobrar" : "Abrir turno para cobrar"}
+                {hasOpenShift ? "Cobrar (Enter)" : "Abrir turno para cobrar"}
               </button>
               <button
                 onClick={handleClearCart}
