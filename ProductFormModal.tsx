@@ -182,7 +182,7 @@ export function ProductFormModal({
       saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
 
     if (!trimmedName || !trimmedCategory || price === "" || cost === "") {
-      setError("Completa nombre, precio, costo, categoria y stock por local.");
+      setError("Completa nombre, precio, costo y categoria.");
       return;
     }
 
@@ -204,7 +204,7 @@ export function ProductFormModal({
     const normalizedLocalStocks = localStocks.map((localStock) => ({
       localId: localStock.localId,
       localName: localStock.localName,
-      stock: parseDecimalInput(localStock.stock),
+      stock: localStock.stock.trim() === "" ? 0 : parseDecimalInput(localStock.stock),
       lowStockAlertThreshold: parseDecimalInput(localStock.lowStockAlertThreshold),
     }));
 
@@ -403,7 +403,7 @@ export function ProductFormModal({
                       <p className="mt-1 text-xs text-slate-500">
                         {productToEdit
                           ? "Cada local maneja su propio stock y su propia alerta."
-                          : "Ahora que elegiste el tipo de venta, carga el stock del local en esa misma unidad."}
+                          : "El stock es opcional. Si lo dejas vacio, el producto comienza en cero."}
                       </p>
                     </div>
                     <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
@@ -425,7 +425,7 @@ export function ProductFormModal({
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{localStock.localName}</p>
                             <p className="mt-1 text-xs text-slate-500">
-                              Ajusta el stock disponible y la alerta minima para este local.
+                              Puedes dejar el stock vacio para guardarlo en cero.
                             </p>
                           </div>
 
@@ -455,7 +455,6 @@ export function ProductFormModal({
                               className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                               inputMode={stockUnit === "unit" ? "numeric" : "decimal"}
                               autoComplete="off"
-                              required
                               placeholder={stockUnit === "unit" ? "0" : "0.00"}
                             />
                           </div>
