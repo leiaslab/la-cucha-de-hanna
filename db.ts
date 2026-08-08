@@ -121,6 +121,14 @@ export class PetShopDatabase extends Dexie {
       shifts: "++id, status, openedAt, closedAt",
     });
 
+    this.version(9).stores({
+      locals: "++id, name",
+      products: "++id, code, name, slug, category, stock, saleType, stockUnit, cost, lowStockAlertThreshold",
+      cart: "++id, productId",
+      orders: "++id, status, createdAt, shiftId",
+      shifts: "++id, status, openedAt, closedAt",
+    });
+
     this.on("populate", () => {
       this.products.bulkAdd([
         {

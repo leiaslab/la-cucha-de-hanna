@@ -148,6 +148,11 @@ export function ProductCard({
           >
             {priceLabel}
           </p>
+          {product.code && (
+            <p className="mt-1 truncate font-mono text-[9px] font-semibold text-slate-500 dark:text-slate-400">
+              Cod. {product.code}
+            </p>
+          )}
           {canManageProducts && visibleLocalStocks.length > 0 && (
             <div className={`mt-1 flex flex-wrap justify-center ${isKioskMode ? "gap-1.5" : "gap-1"}`}>
               {visibleLocalStocks.map((localStock) => (

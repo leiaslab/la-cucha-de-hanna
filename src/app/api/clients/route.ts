@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { ClientRecord } from "../../../lib/pos-types";
+import type { ClientInput } from "../../../lib/pos-types";
 import { createClient, listClients } from "../../../lib/pos-service";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const payload = (await request.json()) as Omit<ClientRecord, "id" | "createdAt" | "updatedAt">;
+    const payload = (await request.json()) as ClientInput;
     const client = await createClient(payload);
     return NextResponse.json({ data: client }, { status: 201 });
   } catch (error) {

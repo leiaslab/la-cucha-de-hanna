@@ -7,6 +7,7 @@ import type {
   AppUserUpdateInput,
   CheckoutPayload,
   CheckoutResult,
+  ClientInput,
   ClientRecord,
   LocalCreateInput,
   LocalRecord,
@@ -186,7 +187,7 @@ export async function closeShiftRemote(shiftId: number, payload: ShiftCloseInput
   return result;
 }
 
-export async function createClientRemote(payload: Omit<ClientRecord, "id" | "createdAt" | "updatedAt">) {
+export async function createClientRemote(payload: ClientInput) {
   return apiFetch<ClientRecord>("/api/clients", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -201,7 +202,7 @@ export async function listClientsRemote() {
 
 export async function updateClientRemote(
   clientId: number,
-  payload: Omit<ClientRecord, "id" | "createdAt" | "updatedAt">,
+  payload: ClientInput,
 ) {
   return apiFetch<ClientRecord>(`/api/clients/${clientId}`, {
     method: "PATCH",

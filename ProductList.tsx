@@ -56,6 +56,7 @@ export function ProductList({
     if (!normalizedSearch) return products;
 
     return products.filter((p) => 
+      p.code?.toLowerCase().includes(normalizedSearch) ||
       p.name.toLowerCase().includes(normalizedSearch) ||
       p.description?.toLowerCase().includes(normalizedSearch) ||
       p.category.toLowerCase().includes(normalizedSearch)
@@ -150,12 +151,26 @@ export function ProductList({
           </select>
           <input
             type="text"
-            placeholder="Buscar"
+            placeholder="Buscar por nombre o codigo"
             className={`w-full min-w-0 rounded-full border border-slate-200 bg-white px-5 text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.06)] outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 ${
               isKioskMode || isTouchOptimized ? "touch-target py-3.5 text-base text-left" : "py-3 text-center"
             }`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") {
+                return;
+              }
+
+              const normalizedCode = searchTerm.trim().toLowerCase();
+              const exactProduct = allProductsForCategories?.find(
+                (product) => product.code?.trim().toLowerCase() === normalizedCode,
+              );
+
+              if (exactProduct?.id) {
+                setActiveSaleProductId(exactProduct.id);
+              }
+            }}
           />
           {extraControls && (
             <div className={`${isKioskMode ? "lg:self-end" : "shrink-0 xl:self-end"}`}>

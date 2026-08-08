@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { ClientRecord } from "../../../../lib/pos-types";
+import type { ClientInput } from "../../../../lib/pos-types";
 import { deleteClient, updateClient } from "../../../../lib/pos-service";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function PATCH(request: Request, context: RouteContext<"/api/clients/[id]">) {
   try {
     const { id } = await context.params;
-    const payload = (await request.json()) as Omit<ClientRecord, "id" | "createdAt" | "updatedAt">;
+    const payload = (await request.json()) as ClientInput;
     const client = await updateClient(Number(id), payload);
     return NextResponse.json({ data: client });
   } catch (error) {

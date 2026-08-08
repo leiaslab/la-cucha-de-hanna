@@ -24,6 +24,7 @@ export interface ProductLocalStock {
 
 export interface Product {
   id?: number;
+  code?: string;
   name: string;
   price: number;
   cost: number;
@@ -144,12 +145,18 @@ export interface LocalUpdateInput {
 export interface ClientRecord {
   id?: number;
   fullName: string;
+  firstName: string;
+  lastName: string;
+  address?: string;
+  dni?: string;
   phone?: string;
   email?: string;
   notes?: string;
   createdAt?: number;
   updatedAt?: number;
 }
+
+export type ClientInput = Omit<ClientRecord, "id" | "fullName" | "createdAt" | "updatedAt">;
 
 export interface PdfRecord {
   id?: number;
@@ -172,6 +179,7 @@ export interface RemoteSnapshot {
 }
 
 export interface ProductInput {
+  code?: string;
   name: string;
   price: number;
   cost: number;

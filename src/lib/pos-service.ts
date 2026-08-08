@@ -3,6 +3,7 @@ import "server-only";
 import type {
   CheckoutPayload,
   CheckoutResult,
+  ClientInput,
   ClientRecord,
   LocalCreateInput,
   LocalRecord,
@@ -28,6 +29,7 @@ import { createServiceRoleSupabaseClient } from "./supabase/server";
 
 type ProductRow = {
   id: number;
+  code: string | null;
   name: string;
   price: number;
   cost: number;
@@ -103,6 +105,10 @@ type ShiftRow = {
 type ClientRow = {
   id: number;
   full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  address: string | null;
+  dni: string | null;
   phone: string | null;
   email: string | null;
   notes: string | null;
@@ -196,6 +202,7 @@ function mapProductRow(
 
   return {
     id: row.id,
+    code: row.code ?? undefined,
     name: row.name,
     price: row.price,
     cost: row.cost,
@@ -277,9 +284,16 @@ function mapShiftRow(row: ShiftRow, localNamesById?: Map<number, LocalRow>): Shi
 }
 
 function mapClientRow(row: ClientRow): ClientRecord {
+  const firstName = row.first_name?.trim() || row.full_name.trim();
+  const lastName = row.last_name?.trim() || "";
+
   return {
     id: row.id,
-    fullName: row.full_name,
+    fullName: [firstName, lastName].filter(Boolean).join(" "),
+    firstName,
+    lastName,
+    address: row.address ?? undefined,
+    dni: row.dni ?? undefined,
     phone: row.phone ?? undefined,
     email: row.email ?? undefined,
     notes: row.notes ?? undefined,
@@ -326,6 +340,7 @@ function mapProductInput(input: ProductInput, preferredLocalId?: number | null) 
     input.localStocks?.[0];
 
   return {
+    code: input.code?.trim() || null,
     name: input.name,
     price: input.price,
     cost: input.cost,
@@ -801,17 +816,37 @@ export async function listClients() {
   return (rows as ClientRow[]).map(mapClientRow);
 }
 
-export async function createClient(input: Omit<ClientRecord, "id" | "createdAt" | "updatedAt">) {
+function normalizeClientInput(input: ClientInput) {
+  const firstName = input.firstName?.trim();
+  const lastName = input.lastName?.trim();
+
+  if (!firstName || !lastName) {
+    throw new Error("Nombre y apellido son obligatorios.");
+  }
+
+  const email = input.email?.trim().toLowerCase() || null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("El email no es valido.");
+  }
+
+  return {
+    full_name: `${firstName} ${lastName}`,
+    first_name: firstName,
+    last_name: lastName,
+    address: input.address?.trim() || null,
+    dni: input.dni?.trim() || null,
+    phone: input.phone?.trim() || null,
+    email,
+    notes: input.notes?.trim() || null,
+  };
+}
+
+export async function createClient(input: ClientInput) {
   const supabase = createServiceRoleSupabaseClient();
   const row = await expectSingle(
     supabase
       .from("clientes")
-      .insert({
-        full_name: input.fullName,
-        phone: input.phone ?? null,
-        email: input.email ?? null,
-        notes: input.notes ?? null,
-      })
+      .insert(normalizeClientInput(input))
       .select("*")
       .single(),
   );
@@ -819,17 +854,12 @@ export async function createClient(input: Omit<ClientRecord, "id" | "createdAt" 
   return mapClientRow(row as ClientRow);
 }
 
-export async function updateClient(id: number, input: Omit<ClientRecord, "id" | "createdAt" | "updatedAt">) {
+export async function updateClient(id: number, input: ClientInput) {
   const supabase = createServiceRoleSupabaseClient();
   const row = await expectSingle(
     supabase
       .from("clientes")
-      .update({
-        full_name: input.fullName,
-        phone: input.phone ?? null,
-        email: input.email ?? null,
-        notes: input.notes ?? null,
-      })
+      .update(normalizeClientInput(input))
       .eq("id", id)
       .select("*")
       .single(),

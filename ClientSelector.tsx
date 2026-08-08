@@ -16,8 +16,12 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [newClientName, setNewClientName] = useState("");
+  const [newClientFirstName, setNewClientFirstName] = useState("");
+  const [newClientLastName, setNewClientLastName] = useState("");
+  const [newClientAddress, setNewClientAddress] = useState("");
+  const [newClientDni, setNewClientDni] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
 
   useEffect(() => {
     const loadClients = async () => {
@@ -40,25 +44,37 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
   );
 
   const handleCreateClient = async () => {
-    const fullName = newClientName.trim();
+    const firstName = newClientFirstName.trim();
+    const lastName = newClientLastName.trim();
+    const address = newClientAddress.trim();
+    const dni = newClientDni.trim();
     const phone = newClientPhone.trim();
+    const email = newClientEmail.trim();
 
-    if (!fullName) {
-      showToast("Ingresa al menos el nombre del cliente.", "error");
+    if (!firstName || !lastName) {
+      showToast("Ingresa nombre y apellido del cliente.", "error");
       return;
     }
 
     try {
       const created = await createClientRemote({
-        fullName,
+        firstName,
+        lastName,
+        address: address || undefined,
+        dni: dni || undefined,
         phone: phone || undefined,
+        email: email || undefined,
       });
       setClients((current) =>
         [...current, created].sort((a, b) => a.fullName.localeCompare(b.fullName)),
       );
       onChange(created.id ?? null);
-      setNewClientName("");
+      setNewClientFirstName("");
+      setNewClientLastName("");
+      setNewClientAddress("");
+      setNewClientDni("");
       setNewClientPhone("");
+      setNewClientEmail("");
       setIsCreating(false);
       setIsExpanded(false);
       showToast("Cliente creado con exito.", "success");
@@ -128,7 +144,7 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
           {clients.map((client) => (
             <option key={client.id} value={client.id}>
               {client.fullName}
-              {client.phone ? ` - ${client.phone}` : ""}
+              {client.dni ? ` - DNI ${client.dni}` : client.phone ? ` - ${client.phone}` : ""}
             </option>
           ))}
         </select>
@@ -148,20 +164,56 @@ export function ClientSelector({ value, onChange, compact = false }: ClientSelec
 
       {isCreating && (
         <div className="mt-3 grid gap-3">
-          <input
-            type="text"
-            value={newClientName}
-            onChange={(event) => setNewClientName(event.target.value)}
-            className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-            placeholder="Nombre del cliente"
-          />
-          <input
-            type="text"
-            value={newClientPhone}
-            onChange={(event) => setNewClientPhone(event.target.value)}
-            className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-            placeholder="Telefono (opcional)"
-          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              type="text"
+              value={newClientFirstName}
+              onChange={(event) => setNewClientFirstName(event.target.value)}
+              className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="Nombre *"
+              autoComplete="given-name"
+            />
+            <input
+              type="text"
+              value={newClientLastName}
+              onChange={(event) => setNewClientLastName(event.target.value)}
+              className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="Apellido *"
+              autoComplete="family-name"
+            />
+            <input
+              type="text"
+              value={newClientDni}
+              onChange={(event) => setNewClientDni(event.target.value)}
+              className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="DNI (opcional)"
+              inputMode="numeric"
+            />
+            <input
+              type="tel"
+              value={newClientPhone}
+              onChange={(event) => setNewClientPhone(event.target.value)}
+              className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="Telefono (opcional)"
+              autoComplete="tel"
+            />
+            <input
+              type="email"
+              value={newClientEmail}
+              onChange={(event) => setNewClientEmail(event.target.value)}
+              className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:col-span-2"
+              placeholder="Email (opcional)"
+              autoComplete="email"
+            />
+            <input
+              type="text"
+              value={newClientAddress}
+              onChange={(event) => setNewClientAddress(event.target.value)}
+              className="block w-full rounded-xl border border-slate-300 p-3 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:col-span-2"
+              placeholder="Direccion (opcional)"
+              autoComplete="street-address"
+            />
+          </div>
           <button
             type="button"
             onClick={() => void handleCreateClient()}

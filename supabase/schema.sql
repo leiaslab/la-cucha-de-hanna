@@ -1,6 +1,10 @@
 create table if not exists public.clientes (
   id bigserial primary key,
   full_name text not null,
+  first_name text,
+  last_name text,
+  address text,
+  dni text,
   phone text,
   email text,
   notes text,
@@ -10,6 +14,7 @@ create table if not exists public.clientes (
 
 create table if not exists public.productos (
   id bigserial primary key,
+  code text,
   name text not null,
   price double precision not null,
   cost double precision not null,
@@ -23,6 +28,25 @@ create table if not exists public.productos (
   image_url text,
   last_updated timestamptz not null default timezone('utc', now())
 );
+
+alter table public.clientes add column if not exists first_name text;
+alter table public.clientes add column if not exists last_name text;
+alter table public.clientes add column if not exists address text;
+alter table public.clientes add column if not exists dni text;
+
+update public.clientes
+set first_name = full_name
+where first_name is null or btrim(first_name) = '';
+
+alter table public.productos add column if not exists code text;
+
+create unique index if not exists productos_code_unique_idx
+on public.productos (lower(btrim(code)))
+where code is not null and btrim(code) <> '';
+
+create unique index if not exists clientes_dni_unique_idx
+on public.clientes (btrim(dni))
+where dni is not null and btrim(dni) <> '';
 
 create table if not exists public.locales (
   id bigserial primary key,

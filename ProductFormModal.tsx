@@ -103,6 +103,7 @@ export function ProductFormModal({
   currentUser,
   preferredLocalId,
 }: ProductFormModalProps) {
+  const [code, setCode] = useState(productToEdit?.code ?? "");
   const [name, setName] = useState(productToEdit?.name ?? "");
   const [price, setPrice] = useState(productToEdit ? String(productToEdit.price) : "");
   const [cost, setCost] = useState(
@@ -170,6 +171,7 @@ export function ProductFormModal({
     e.preventDefault();
     setError(null);
 
+    const trimmedCode = code.trim();
     const trimmedName = name.trim();
     const trimmedCategory = category.trim();
     const trimmedDescription = description.trim();
@@ -230,6 +232,7 @@ export function ProductFormModal({
       normalizedLocalStocks[0];
 
     const productData = {
+      code: trimmedCode || undefined,
       name: trimmedName,
       slug: generateSlug(trimmedName),
       price: parsedPrice,
@@ -287,6 +290,24 @@ export function ProductFormModal({
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor="code" className="block text-sm font-medium text-slate-700">
+                  Codigo del producto <span className="text-slate-400">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Ej: 7791234567890 o ALIM-PERRO-01"
+                  autoComplete="off"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Debe ser unico. Luego podes escribirlo en Buscar y presionar Enter para vender.
+                </p>
+              </div>
+
               <div className="sm:col-span-2">
                 <label htmlFor="name" className="block text-sm font-medium text-slate-700">
                   Nombre del Producto <span className="text-red-500">*</span>
