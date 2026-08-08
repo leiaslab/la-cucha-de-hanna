@@ -44,6 +44,14 @@ type ProductRow = {
   last_updated: string;
 };
 
+const PRODUCT_BOOTSTRAP_COLUMNS =
+  "id,code,name,price,cost,stock,low_stock_alert_threshold,category,slug,sale_type,stock_unit,description,last_updated";
+
+function productImagePath(productId: number, lastUpdated?: string) {
+  const version = lastUpdated ? `?v=${encodeURIComponent(lastUpdated)}` : "";
+  return `/api/products/${productId}/image${version}`;
+}
+
 type ProductLocalStockRow = {
   id: number;
   product_id: number;
@@ -216,7 +224,7 @@ function mapProductRow(
     saleType: row.sale_type,
     stockUnit: row.stock_unit,
     description: row.description ?? undefined,
-    imageUrl: row.image_url ?? undefined,
+    imageUrl: row.image_url ? productImagePath(row.id, row.last_updated) : undefined,
     localStocks: localStocks.length > 0 ? localStocks : undefined,
     lastUpdated: toMillis(row.last_updated) ?? Date.now(),
   };
@@ -657,8 +665,9 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
     productLocalStocksQuery.eq("local_id", activeLocalId);
   }
 
-  const [products, productLocalStocks, sales, shifts, clients, pdfs, userRows, localRows] = await Promise.all([
-    expectMany(supabase.from("productos").select("*").order("name")),
+  const [products, productImages, productLocalStocks, sales, shifts, clients, pdfs, userRows, localRows] = await Promise.all([
+    expectMany(supabase.from("productos").select(PRODUCT_BOOTSTRAP_COLUMNS).order("name")),
+    expectMany(supabase.from("productos").select("id").not("image_url", "is", null)),
     expectMany(productLocalStocksQuery),
     expectMany(salesQuery),
     expectMany(shiftsQuery),
@@ -671,11 +680,19 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
   const userNamesById = createUserReferenceMap(userRows as AppUserReferenceRow[]);
   const localNamesById = createLocalMap(localRows as LocalRow[]);
   const localStocksByProductId = createProductLocalStockMap(productLocalStocks as ProductLocalStockRow[]);
+  const productIdsWithImages = new Set(
+    (productImages as Array<{ id: number }>).map((product) => product.id),
+  );
 
   return {
     locales: (localRows as LocalRow[]).map(mapLocalRow),
-    products: (products as ProductRow[]).map((row) =>
-      mapProductRow(row, localStocksByProductId, localNamesById, activeLocalId),
+    products: (products as Array<Omit<ProductRow, "image_url">>).map((row) =>
+      mapProductRow(
+        { ...row, image_url: productIdsWithImages.has(row.id) ? productImagePath(row.id, row.last_updated) : null },
+        localStocksByProductId,
+        localNamesById,
+        activeLocalId,
+      ),
     ),
     orders: (sales as SaleRow[]).map((row) => mapOrderRow(row, userNamesById, localNamesById)),
     shifts: (shifts as ShiftRow[]).map((row) => mapShiftRow(row, localNamesById)),
@@ -715,10 +732,15 @@ export async function updateProduct(id: number, input: ProductInput, sessionUser
   const preferredLocalId = input.preferredLocalId ?? sessionUser?.localId ?? null;
   const localRows = (await listLocalRows()) as LocalRow[];
 
+  const mappedInput = mapProductInput(input, preferredLocalId);
+  const { image_url: _currentImagePath, ...mappedInputWithoutImage } = mappedInput;
+  void _currentImagePath;
+  const keepsExistingImage = input.imageUrl?.startsWith(`/api/products/${id}/image`);
+
   const row = await expectSingle(
     supabase
       .from("productos")
-      .update(mapProductInput(input, preferredLocalId))
+      .update(keepsExistingImage ? mappedInputWithoutImage : mappedInput)
       .eq("id", id)
       .select("*")
       .single(),
@@ -814,6 +836,15 @@ export async function listClients() {
   const supabase = createServiceRoleSupabaseClient();
   const rows = await expectMany(supabase.from("clientes").select("*").order("full_name"));
   return (rows as ClientRow[]).map(mapClientRow);
+}
+
+export async function getProductImageSource(id: number) {
+  const supabase = createServiceRoleSupabaseClient();
+  const row = await expectSingle(
+    supabase.from("productos").select("image_url").eq("id", id).single(),
+  );
+
+  return (row as { image_url: string | null }).image_url;
 }
 
 function normalizeClientInput(input: ClientInput) {
