@@ -19,9 +19,7 @@ export function getFallbackAdminCredentials() {
 }
 
 export function validatePasswordStrength(password: string): string | null {
-  if (password.length < 8) return "La clave debe tener al menos 8 caracteres.";
-  if (!/[0-9]/.test(password)) return "La clave debe contener al menos un número.";
-  if (!/[A-Z]/.test(password)) return "La clave debe contener al menos una letra mayúscula.";
+  if (password.length < 4) return "La clave debe tener al menos 4 caracteres.";
   return null;
 }
 

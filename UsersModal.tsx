@@ -400,6 +400,9 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                     {showPassword ? "Ocultar" : "Ver"}
                   </button>
                 </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Minimo 4 caracteres. Puede ser solo numeros, por ejemplo 1234.
+                </p>
               </div>
 
               <div>
