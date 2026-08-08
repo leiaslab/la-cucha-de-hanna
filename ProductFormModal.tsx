@@ -113,7 +113,7 @@ export function ProductFormModal({
   const [stockUnit, setStockUnit] = useState<StockUnit>(productToEdit?.stockUnit ?? "unit");
   const [category, setCategory] = useState(productToEdit?.category ?? "");
   const [selectedCategory, setSelectedCategory] = useState(productToEdit?.category ?? "");
-  const [imageUrl, setImageUrl] = useState(productToEdit?.imageUrl ?? "");
+  const [imageUrl] = useState(productToEdit?.imageUrl ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +134,7 @@ export function ProductFormModal({
     () => (previewBlob ? URL.createObjectURL(previewBlob) : null),
     [previewBlob],
   );
-  const previewUrl = imageUrl || previewObjectUrl;
+  const previewUrl = previewObjectUrl || imageUrl;
   const preventWheelChange = (event: React.WheelEvent<HTMLInputElement>) => {
     event.currentTarget.blur();
   };
@@ -549,7 +549,7 @@ export function ProductFormModal({
 
               <div className="sm:col-span-2">
                 <label htmlFor="imageFile" className="block text-sm font-medium text-slate-700">
-                  Imagen Local (opcional)
+                  Imagen del producto (opcional)
                 </label>
                 <input
                   type="file"
@@ -558,19 +558,11 @@ export function ProductFormModal({
                   onChange={(e) => setImageFile(e.target.files?.[0] || null)}
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-2 text-sm text-slate-500 shadow-sm file:mr-4 file:rounded-xl file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
                 />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label htmlFor="imageUrl" className="block text-sm font-medium text-slate-700">
-                  URL de la Imagen (opcional)
-                </label>
-                <input
-                  type="url"
-                  id="imageUrl"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                />
+                {productToEdit?.imageUrl && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Si no eliges otra imagen, se conserva la actual.
+                  </p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
