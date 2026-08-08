@@ -594,9 +594,12 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
                     placeholder="Ingresa tu clave para confirmar"
                     className="mt-2 block w-full rounded-xl border border-rose-200 bg-white p-3 text-sm shadow-sm outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-900 dark:bg-slate-900 dark:text-slate-100"
                     name="admin-reset-secret"
-                    autoComplete="new-password"
+                    autoComplete="one-time-code"
+                    data-form-type="other"
                     data-lpignore="true"
                     data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-protonpass-ignore="true"
                   />
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                     Para borrar ventas ahora se valida la clave del admin actual en lugar de pedir texto manual.

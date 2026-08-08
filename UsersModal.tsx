@@ -384,9 +384,12 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                     onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
                     className="block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     name="user-secret"
-                    autoComplete="new-password"
+                    autoComplete="one-time-code"
+                    data-form-type="other"
                     data-lpignore="true"
                     data-1p-ignore="true"
+                    data-bwignore="true"
+                    data-protonpass-ignore="true"
                     required={!editingUser}
                   />
                   <button
