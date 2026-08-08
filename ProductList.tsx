@@ -53,14 +53,26 @@ export function ProductList({
     const products = await query.toArray();
     const normalizedSearch = searchTerm.trim().toLowerCase();
     
-    if (!normalizedSearch) return products;
+    const visibleProducts = normalizedSearch
+      ? products.filter((p) =>
+          p.code?.toLowerCase().includes(normalizedSearch) ||
+          p.name.toLowerCase().includes(normalizedSearch) ||
+          p.description?.toLowerCase().includes(normalizedSearch) ||
+          p.category.toLowerCase().includes(normalizedSearch),
+        )
+      : products;
 
-    return products.filter((p) => 
-      p.code?.toLowerCase().includes(normalizedSearch) ||
-      p.name.toLowerCase().includes(normalizedSearch) ||
-      p.description?.toLowerCase().includes(normalizedSearch) ||
-      p.category.toLowerCase().includes(normalizedSearch)
-    );
+    return visibleProducts.sort((a, b) => {
+      const categoryOrder = a.category.localeCompare(b.category, "es", { sensitivity: "base" });
+      if (categoryOrder !== 0) {
+        return categoryOrder;
+      }
+
+      const priceOrder = a.price - b.price;
+      return priceOrder !== 0
+        ? priceOrder
+        : a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+    });
   }, [searchTerm, selectedCategory]);
 
   useEffect(() => {
