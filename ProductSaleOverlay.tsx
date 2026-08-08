@@ -151,6 +151,17 @@ export function ProductSaleOverlay({
                 )}
               </div>
 
+              {product.description?.trim() && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                    Comentarios del producto
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                    {product.description}
+                  </p>
+                </div>
+              )}
+
               {canManageProducts && visibleLocalStocks.length > 0 && (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
