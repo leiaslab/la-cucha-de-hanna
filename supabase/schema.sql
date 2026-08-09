@@ -21,7 +21,7 @@ create table if not exists public.productos (
   stock double precision not null default 0,
   low_stock_alert_threshold double precision not null default 5,
   category text not null,
-  slug text not null unique,
+  slug text not null,
   sale_type text not null check (sale_type in ('fixed', 'weight')),
   stock_unit text not null check (stock_unit in ('unit', 'kg', 'liter')),
   description text,
@@ -43,6 +43,11 @@ alter table public.productos add column if not exists code text;
 create unique index if not exists productos_code_unique_idx
 on public.productos (lower(btrim(code)))
 where code is not null and btrim(code) <> '';
+
+alter table public.productos drop constraint if exists productos_slug_key;
+
+create unique index if not exists productos_category_slug_unique_idx
+on public.productos (lower(btrim(category)), slug);
 
 create unique index if not exists clientes_dni_unique_idx
 on public.clientes (btrim(dni))

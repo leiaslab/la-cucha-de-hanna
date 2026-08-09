@@ -32,7 +32,8 @@ async function readJson<T>(response: Response) {
     | null;
 
   if (!response.ok) {
-    throw new Error(payload?.error ?? "La solicitud fallo.");
+    const message = payload?.error ?? "La solicitud fallo.";
+    throw new Error(payload?.details ? `${message} ${payload.details}` : message);
   }
 
   if (!payload?.data) {
