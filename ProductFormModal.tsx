@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type LocalRecord, type Product, type SessionUser, type StockUnit } from "./db";
-import { saveProductRemote } from "./src/lib/api-client";
+import {
+  deleteProductCategoryRemote,
+  moveProductCategoryRemote,
+  saveProductRemote,
+} from "./src/lib/api-client";
 
 type SaleMode = "unit" | "kg" | "liter";
 
@@ -114,6 +118,9 @@ export function ProductFormModal({
   const [category, setCategory] = useState(productToEdit?.category ?? "");
   const [selectedCategory, setSelectedCategory] = useState(productToEdit?.category ?? "");
   const [subcategory, setSubcategory] = useState(productToEdit?.subcategory ?? "");
+  const [targetCategory, setTargetCategory] = useState("");
+  const [isManagingCategory, setIsManagingCategory] = useState(false);
+  const [isCategoryActionPending, setIsCategoryActionPending] = useState(false);
   const [imageUrl] = useState(productToEdit?.imageUrl ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
@@ -145,6 +152,13 @@ export function ProductFormModal({
       ),
     ).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
   }, [category]);
+  const selectedCategoryProductCount = useLiveQuery(
+    () =>
+      selectedCategory
+        ? db.products.where("category").equals(selectedCategory).count()
+        : Promise.resolve(0),
+    [selectedCategory],
+  );
 
   const previewBlob = imageFile ?? (!imageUrl ? productToEdit?.imageBlob ?? null : null);
   const previewObjectUrl = useMemo(
@@ -273,6 +287,61 @@ export function ProductFormModal({
       onClose();
     } catch (err) {
       setError("Error al guardar el producto: " + (err as Error).message);
+    }
+  };
+
+  const handleMoveCategory = async () => {
+    const source = selectedCategory.trim();
+    const target = targetCategory.trim();
+    if (!source || !target) {
+      setError("Elegi la categoria de origen y escribi una categoria de destino.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Se moveran ${selectedCategoryProductCount ?? 0} producto(s) de "${source}" a "${target}". ¿Continuar?`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsCategoryActionPending(true);
+      await moveProductCategoryRemote(source, target);
+      onClose();
+    } catch (actionError) {
+      setError((actionError as Error).message);
+    } finally {
+      setIsCategoryActionPending(false);
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    const source = selectedCategory.trim();
+    if (!source) {
+      return;
+    }
+
+    const productCount = selectedCategoryProductCount ?? 0;
+    if (
+      !window.confirm(
+        `ATENCION: se eliminara la categoria "${source}" y sus ${productCount} producto(s). Esta accion no se puede deshacer. ¿Eliminar?`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsCategoryActionPending(true);
+      await deleteProductCategoryRemote(source);
+      onClose();
+    } catch (actionError) {
+      setError((actionError as Error).message);
+    } finally {
+      setIsCategoryActionPending(false);
     }
   };
 
@@ -539,6 +608,18 @@ export function ProductFormModal({
                     </option>
                   ))}
                 </select>
+                {selectedCategory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsManagingCategory((current) => !current);
+                      setTargetCategory("");
+                    }}
+                    className="mt-2 text-sm font-semibold text-blue-700 hover:text-blue-800"
+                  >
+                    {isManagingCategory ? "Ocultar administracion" : "Administrar categoria"}
+                  </button>
+                )}
               </div>
 
               <div>
@@ -568,6 +649,60 @@ export function ProductFormModal({
                   ))}
                 </datalist>
               </div>
+
+              {selectedCategory && isManagingCategory && (
+                <div className="sm:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Administrar &quot;{selectedCategory}&quot;
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Esta categoria contiene {selectedCategoryProductCount ?? 0} producto(s).
+                  </p>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div>
+                      <label htmlFor="targetCategory" className="block text-xs font-semibold text-slate-600">
+                        Mover todos los productos a
+                      </label>
+                      <input
+                        id="targetCategory"
+                        type="text"
+                        list="target-product-categories"
+                        value={targetCategory}
+                        onChange={(event) => setTargetCategory(event.target.value)}
+                        className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                        placeholder="Categoria existente o nueva"
+                      />
+                      <datalist id="target-product-categories">
+                        {(existingCategories ?? [])
+                          .filter((candidate) => candidate !== selectedCategory)
+                          .map((candidate) => (
+                            <option key={candidate} value={candidate} />
+                          ))}
+                      </datalist>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMoveCategory}
+                      disabled={isCategoryActionPending || !targetCategory.trim()}
+                      className="self-end rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Mover productos
+                    </button>
+                  </div>
+
+                  <div className="mt-4 border-t border-amber-200 pt-4">
+                    <button
+                      type="button"
+                      onClick={handleDeleteCategory}
+                      disabled={isCategoryActionPending}
+                      className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Eliminar categoria y productos
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="sm:col-span-2">
                 <label htmlFor="subcategory" className="block text-sm font-medium text-slate-700">

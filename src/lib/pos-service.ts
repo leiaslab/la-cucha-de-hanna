@@ -841,6 +841,68 @@ export async function listClients() {
   return (rows as ClientRow[]).map(mapClientRow);
 }
 
+export async function moveProductCategory(sourceCategory: string, targetCategory: string) {
+  const source = sourceCategory.trim();
+  const target = targetCategory.trim();
+
+  if (!source || !target) {
+    throw new Error("La categoria de origen y la de destino son obligatorias.");
+  }
+
+  if (source.localeCompare(target, "es", { sensitivity: "base" }) === 0) {
+    throw new Error("La categoria de destino debe ser diferente.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("productos")
+    .update({
+      category: target,
+      last_updated: new Date().toISOString(),
+    })
+    .eq("category", source)
+    .select("id");
+
+  if (error) {
+    if (error.message.includes("productos_category_slug_unique_idx")) {
+      throw new Error(
+        "No se pueden unir esas categorias porque contienen productos con el mismo nombre.",
+      );
+    }
+    throw new Error(error.message);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error("La categoria seleccionada ya no tiene productos.");
+  }
+
+  return data.length;
+}
+
+export async function deleteProductCategory(category: string) {
+  const normalizedCategory = category.trim();
+  if (!normalizedCategory) {
+    throw new Error("La categoria es obligatoria.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("productos")
+    .delete()
+    .eq("category", normalizedCategory)
+    .select("id");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error("La categoria seleccionada ya no tiene productos.");
+  }
+
+  return data.length;
+}
+
 export async function getProductImageSource(id: number) {
   const supabase = createServiceRoleSupabaseClient();
   const row = await expectSingle(

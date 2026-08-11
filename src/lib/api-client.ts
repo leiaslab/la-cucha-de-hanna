@@ -130,6 +130,27 @@ export async function deleteProductRemote(productId: number) {
   await db.cart.where("productId").equals(productId).delete();
 }
 
+export async function moveProductCategoryRemote(sourceCategory: string, targetCategory: string) {
+  const result = await apiFetch<{ updatedCount: number }>(
+    `/api/product-categories/${encodeURIComponent(sourceCategory)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ targetCategory }),
+    },
+  );
+  await syncRemoteSnapshot();
+  return result;
+}
+
+export async function deleteProductCategoryRemote(category: string) {
+  const result = await apiFetch<{ deletedCount: number }>(
+    `/api/product-categories/${encodeURIComponent(category)}`,
+    { method: "DELETE" },
+  );
+  await syncRemoteSnapshot();
+  return result;
+}
+
 export async function importProductsRemote(products: ProductInput[]) {
   const saved = await apiFetch<Product[]>("/api/products", {
     method: "PUT",
