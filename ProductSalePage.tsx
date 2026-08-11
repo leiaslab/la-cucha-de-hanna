@@ -58,7 +58,9 @@ export function ProductSalePage({ productId }: ProductSalePageProps) {
                 )}
               </div>
               <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600">
-                <p className="font-semibold text-gray-900">{product.category}</p>
+                <p className="font-semibold text-gray-900">
+                  {product.category}{product.subcategory ? ` / ${product.subcategory}` : ""}
+                </p>
                 <p className="mt-1">{formatPriceLabel(product)}</p>
                 <p className="mt-1">Stock disponible: {getRemainingStockLabel(product)}</p>
               </div>

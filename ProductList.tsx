@@ -27,6 +27,7 @@ export function ProductList({
 }: ProductListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [activeSaleProductId, setActiveSaleProductId] = useState<number | null>(null);
   const lowStockSummaryRef = useRef<string | null>(null);
 
@@ -45,6 +46,21 @@ export function ProductList({
     );
   }, [allProductsForCategories]);
 
+  const uniqueSubcategories = useMemo(() => {
+    if (!allProductsForCategories || !selectedCategory) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        allProductsForCategories
+          .filter((product) => product.category === selectedCategory)
+          .map((product) => product.subcategory?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, [allProductsForCategories, selectedCategory]);
+
   const filteredProducts = useLiveQuery(async () => {
     const query = selectedCategory 
       ? db.products.where("category").equals(selectedCategory)
@@ -53,14 +69,18 @@ export function ProductList({
     const products = await query.toArray();
     const normalizedSearch = searchTerm.trim().toLowerCase();
     
+    const productsInSubcategory = selectedSubcategory
+      ? products.filter((product) => product.subcategory === selectedSubcategory)
+      : products;
     const visibleProducts = normalizedSearch
-      ? products.filter((p) =>
+      ? productsInSubcategory.filter((p) =>
           p.code?.toLowerCase().includes(normalizedSearch) ||
           p.name.toLowerCase().includes(normalizedSearch) ||
           p.description?.toLowerCase().includes(normalizedSearch) ||
-          p.category.toLowerCase().includes(normalizedSearch),
+          p.category.toLowerCase().includes(normalizedSearch) ||
+          p.subcategory?.toLowerCase().includes(normalizedSearch),
         )
-      : products;
+      : productsInSubcategory;
 
     return visibleProducts.sort((a, b) => {
       const categoryOrder = a.category.localeCompare(b.category, "es", { sensitivity: "base" });
@@ -68,12 +88,19 @@ export function ProductList({
         return categoryOrder;
       }
 
+      const subcategoryOrder = (a.subcategory ?? "").localeCompare(b.subcategory ?? "", "es", {
+        sensitivity: "base",
+      });
+      if (subcategoryOrder !== 0) {
+        return subcategoryOrder;
+      }
+
       const priceOrder = a.price - b.price;
       return priceOrder !== 0
         ? priceOrder
         : a.name.localeCompare(b.name, "es", { sensitivity: "base" });
     });
-  }, [searchTerm, selectedCategory]);
+  }, [searchTerm, selectedCategory, selectedSubcategory]);
 
   useEffect(() => {
     if (!allProductsForCategories) {
@@ -140,7 +167,10 @@ export function ProductList({
           )}
           <select
             value={selectedCategory ?? ""}
-            onChange={(e) => setSelectedCategory(e.target.value || null)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value || null);
+              setSelectedSubcategory(null);
+            }}
             className={`appearance-none rounded-full border border-slate-200 bg-white pl-4 pr-10 font-semibold text-slate-700 outline-none shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${
               isKioskMode
                 ? "touch-target py-3.5 text-base lg:w-44"
@@ -158,6 +188,21 @@ export function ProductList({
             {uniqueCategories.map((category) => (
               <option key={category} value={category}>
                 {category}
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedSubcategory ?? ""}
+            onChange={(e) => setSelectedSubcategory(e.target.value || null)}
+            disabled={!selectedCategory || uniqueSubcategories.length === 0}
+            className={`appearance-none rounded-full border border-slate-200 bg-white pl-4 pr-10 font-semibold text-slate-700 outline-none shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${
+              isKioskMode ? "touch-target py-3.5 text-base lg:w-48" : "touch-target py-3 text-sm xl:w-44"
+            }`}
+          >
+            <option value="">Todas las subcategorias</option>
+            {uniqueSubcategories.map((subcategory) => (
+              <option key={subcategory} value={subcategory}>
+                {subcategory}
               </option>
             ))}
           </select>

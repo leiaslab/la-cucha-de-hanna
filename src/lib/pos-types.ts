@@ -33,6 +33,7 @@ export interface Product {
   lowStockAlertThreshold: number;
   globalLowStockAlertThreshold?: number;
   category: string;
+  subcategory?: string;
   slug: string;
   saleType: SaleType;
   stockUnit: StockUnit;
@@ -187,6 +188,7 @@ export interface ProductInput {
   preferredLocalId?: number;
   lowStockAlertThreshold: number;
   category: string;
+  subcategory?: string;
   slug: string;
   saleType: SaleType;
   stockUnit: StockUnit;

@@ -129,6 +129,20 @@ export class PetShopDatabase extends Dexie {
       shifts: "++id, status, openedAt, closedAt",
     });
 
+    this.version(10)
+      .stores({
+        locals: "++id, name",
+        products: "++id, code, name, slug, category, subcategory, stock, saleType, stockUnit, cost, lowStockAlertThreshold",
+        cart: "++id, productId",
+        orders: "++id, status, createdAt, shiftId",
+        shifts: "++id, status, openedAt, closedAt",
+      })
+      .upgrade(async (tx) => {
+        await tx.table("products").toCollection().modify((product) => {
+          product.subcategory = product.subcategory ?? "";
+        });
+      });
+
     this.on("populate", () => {
       this.products.bulkAdd([
         {

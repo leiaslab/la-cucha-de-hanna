@@ -121,7 +121,10 @@ export function ProductSaleOverlay({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Categoria
                   </p>
-                  <p className="mt-1.5 text-base font-bold text-slate-900">{product.category}</p>
+                  <p className="mt-1.5 text-base font-bold text-slate-900">
+                    {product.category}
+                    {product.subcategory ? ` / ${product.subcategory}` : ""}
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">

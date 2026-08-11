@@ -36,6 +36,7 @@ type ProductRow = {
   stock: number;
   low_stock_alert_threshold: number;
   category: string;
+  subcategory: string | null;
   slug: string;
   sale_type: Product["saleType"];
   stock_unit: Product["stockUnit"];
@@ -45,7 +46,7 @@ type ProductRow = {
 };
 
 const PRODUCT_BOOTSTRAP_COLUMNS =
-  "id,code,name,price,cost,stock,low_stock_alert_threshold,category,slug,sale_type,stock_unit,description,last_updated";
+  "id,code,name,price,cost,stock,low_stock_alert_threshold,category,subcategory,slug,sale_type,stock_unit,description,last_updated";
 
 function productImagePath(productId: number, lastUpdated?: string) {
   const version = lastUpdated ? `?v=${encodeURIComponent(lastUpdated)}` : "";
@@ -220,6 +221,7 @@ function mapProductRow(
       projectedLocalStock?.lowStockAlertThreshold ?? row.low_stock_alert_threshold,
     globalLowStockAlertThreshold,
     category: row.category,
+    subcategory: row.subcategory ?? undefined,
     slug: row.slug,
     saleType: row.sale_type,
     stockUnit: row.stock_unit,
@@ -356,6 +358,7 @@ function mapProductInput(input: ProductInput, preferredLocalId?: number | null) 
     low_stock_alert_threshold:
       preferredLocalStock?.lowStockAlertThreshold ?? input.lowStockAlertThreshold,
     category: input.category,
+    subcategory: input.subcategory?.trim() || null,
     slug: input.slug,
     sale_type: input.saleType,
     stock_unit: input.stockUnit,

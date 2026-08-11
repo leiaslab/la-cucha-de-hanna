@@ -21,6 +21,7 @@ create table if not exists public.productos (
   stock double precision not null default 0,
   low_stock_alert_threshold double precision not null default 5,
   category text not null,
+  subcategory text,
   slug text not null,
   sale_type text not null check (sale_type in ('fixed', 'weight')),
   stock_unit text not null check (stock_unit in ('unit', 'kg', 'liter')),
@@ -39,6 +40,7 @@ set first_name = full_name
 where first_name is null or btrim(first_name) = '';
 
 alter table public.productos add column if not exists code text;
+alter table public.productos add column if not exists subcategory text;
 
 create unique index if not exists productos_code_unique_idx
 on public.productos (lower(btrim(code)))

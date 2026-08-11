@@ -113,6 +113,7 @@ export function ProductFormModal({
   const [stockUnit, setStockUnit] = useState<StockUnit>(productToEdit?.stockUnit ?? "unit");
   const [category, setCategory] = useState(productToEdit?.category ?? "");
   const [selectedCategory, setSelectedCategory] = useState(productToEdit?.category ?? "");
+  const [subcategory, setSubcategory] = useState(productToEdit?.subcategory ?? "");
   const [imageUrl] = useState(productToEdit?.imageUrl ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
@@ -128,6 +129,22 @@ export function ProductFormModal({
       (a, b) => a.localeCompare(b),
     );
   }, []);
+  const existingSubcategories = useLiveQuery(async () => {
+    const normalizedCategory = category.trim().toLocaleLowerCase("es");
+    if (!normalizedCategory) {
+      return [];
+    }
+
+    const products = await db.products.toArray();
+    return Array.from(
+      new Set(
+        products
+          .filter((product) => product.category.trim().toLocaleLowerCase("es") === normalizedCategory)
+          .map((product) => product.subcategory?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, [category]);
 
   const previewBlob = imageFile ?? (!imageUrl ? productToEdit?.imageBlob ?? null : null);
   const previewObjectUrl = useMemo(
@@ -174,6 +191,7 @@ export function ProductFormModal({
     const trimmedCode = code.trim();
     const trimmedName = name.trim();
     const trimmedCategory = category.trim();
+    const trimmedSubcategory = subcategory.trim();
     const trimmedDescription = description.trim();
     const trimmedImageUrl = imageUrl.trim();
     const parsedPrice = Number(price);
@@ -241,6 +259,7 @@ export function ProductFormModal({
       preferredLocalId: preferredLocalStock?.localId ?? preferredLocalId ?? undefined,
       lowStockAlertThreshold: preferredLocalStock?.lowStockAlertThreshold ?? 5,
       category: trimmedCategory,
+      subcategory: trimmedSubcategory || undefined,
       saleType,
       stockUnit: normalizedStockUnit,
       imageUrl: nextImageUrl,
@@ -508,6 +527,7 @@ export function ProductFormModal({
                     setSelectedCategory(nextCategory);
                     if (nextCategory) {
                       setCategory(nextCategory);
+                      setSubcategory("");
                     }
                   }}
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
@@ -533,6 +553,9 @@ export function ProductFormModal({
                   onChange={(e) => {
                     const nextCategory = e.target.value;
                     setCategory(nextCategory);
+                    if (nextCategory !== category) {
+                      setSubcategory("");
+                    }
                     setSelectedCategory((existingCategories ?? []).includes(nextCategory) ? nextCategory : "");
                   }}
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
@@ -544,6 +567,30 @@ export function ProductFormModal({
                     <option key={existingCategory} value={existingCategory} />
                   ))}
                 </datalist>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor="subcategory" className="block text-sm font-medium text-slate-700">
+                  Subcategoria <span className="text-slate-400">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  id="subcategory"
+                  list="product-subcategories"
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  placeholder={category.trim() ? "Ej.: Alimento seco" : "Primero elige una categoria"}
+                  disabled={!category.trim()}
+                />
+                <datalist id="product-subcategories">
+                  {(existingSubcategories ?? []).map((existingSubcategory) => (
+                    <option key={existingSubcategory} value={existingSubcategory} />
+                  ))}
+                </datalist>
+                <p className="mt-1 text-xs text-slate-500">
+                  Se sugieren las subcategorias ya usadas dentro de la categoria elegida.
+                </p>
               </div>
 
               <div className="sm:col-span-2">
