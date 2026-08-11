@@ -118,6 +118,9 @@ export function ProductFormModal({
   const [category, setCategory] = useState(productToEdit?.category ?? "");
   const [selectedCategory, setSelectedCategory] = useState(productToEdit?.category ?? "");
   const [subcategory, setSubcategory] = useState(productToEdit?.subcategory ?? "");
+  const [selectedSubcategory, setSelectedSubcategory] = useState(
+    productToEdit?.subcategory ?? "",
+  );
   const [targetCategory, setTargetCategory] = useState("");
   const [isManagingCategory, setIsManagingCategory] = useState(false);
   const [isCategoryActionPending, setIsCategoryActionPending] = useState(false);
@@ -597,6 +600,7 @@ export function ProductFormModal({
                     if (nextCategory) {
                       setCategory(nextCategory);
                       setSubcategory("");
+                      setSelectedSubcategory("");
                     }
                   }}
                   className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
@@ -636,6 +640,7 @@ export function ProductFormModal({
                     setCategory(nextCategory);
                     if (nextCategory !== category) {
                       setSubcategory("");
+                      setSelectedSubcategory("");
                     }
                     setSelectedCategory((existingCategories ?? []).includes(nextCategory) ? nextCategory : "");
                   }}
@@ -704,28 +709,58 @@ export function ProductFormModal({
                 </div>
               )}
 
-              <div className="sm:col-span-2">
+              <div>
+                <label
+                  htmlFor="existingSubcategory"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  Subcategoria existente
+                </label>
+                <select
+                  id="existingSubcategory"
+                  value={selectedSubcategory}
+                  onChange={(event) => {
+                    const nextSubcategory = event.target.value;
+                    setSelectedSubcategory(nextSubcategory);
+                    setSubcategory(nextSubcategory);
+                  }}
+                  disabled={!category.trim() || (existingSubcategories ?? []).length === 0}
+                  className="mt-1 block w-full rounded-xl border border-slate-300 bg-white p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <option value="">
+                    {(existingSubcategories ?? []).length > 0
+                      ? "Elegir subcategoria..."
+                      : "No hay subcategorias cargadas"}
+                  </option>
+                  {(existingSubcategories ?? []).map((existingSubcategory) => (
+                    <option key={existingSubcategory} value={existingSubcategory}>
+                      {existingSubcategory}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="subcategory" className="block text-sm font-medium text-slate-700">
-                  Subcategoria <span className="text-slate-400">(opcional)</span>
+                  Subcategoria nueva <span className="text-slate-400">(opcional)</span>
                 </label>
                 <input
                   type="text"
                   id="subcategory"
-                  list="product-subcategories"
                   value={subcategory}
-                  onChange={(e) => setSubcategory(e.target.value)}
+                  onChange={(event) => {
+                    const nextSubcategory = event.target.value;
+                    setSubcategory(nextSubcategory);
+                    setSelectedSubcategory(
+                      (existingSubcategories ?? []).includes(nextSubcategory)
+                        ? nextSubcategory
+                        : "",
+                    );
+                  }}
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  placeholder={category.trim() ? "Ej.: Alimento seco" : "Primero elige una categoria"}
+                  placeholder={category.trim() ? "Escribe una nueva" : "Primero elige una categoria"}
                   disabled={!category.trim()}
                 />
-                <datalist id="product-subcategories">
-                  {(existingSubcategories ?? []).map((existingSubcategory) => (
-                    <option key={existingSubcategory} value={existingSubcategory} />
-                  ))}
-                </datalist>
-                <p className="mt-1 text-xs text-slate-500">
-                  Se sugieren las subcategorias ya usadas dentro de la categoria elegida.
-                </p>
               </div>
 
               <div className="sm:col-span-2">

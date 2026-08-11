@@ -62,23 +62,23 @@ export function ProductList({
   }, [allProductsForCategories, selectedCategory]);
 
   const filteredProducts = useLiveQuery(async () => {
-    const query = selectedCategory 
-      ? db.products.where("category").equals(selectedCategory)
-      : db.products.toCollection();
-
-    const products = await query.toArray();
     const normalizedSearch = searchTerm.trim().toLowerCase();
-    
+    const products = normalizedSearch
+      ? await db.products.toArray()
+      : await (selectedCategory
+          ? db.products.where("category").equals(selectedCategory)
+          : db.products.toCollection()
+        ).toArray();
+
     const productsInSubcategory = selectedSubcategory
-      ? products.filter((product) => product.subcategory === selectedSubcategory)
+      ? normalizedSearch
+        ? products
+        : products.filter((product) => product.subcategory === selectedSubcategory)
       : products;
     const visibleProducts = normalizedSearch
       ? productsInSubcategory.filter((p) =>
           p.code?.toLowerCase().includes(normalizedSearch) ||
-          p.name.toLowerCase().includes(normalizedSearch) ||
-          p.description?.toLowerCase().includes(normalizedSearch) ||
-          p.category.toLowerCase().includes(normalizedSearch) ||
-          p.subcategory?.toLowerCase().includes(normalizedSearch),
+          p.name.toLowerCase().includes(normalizedSearch),
         )
       : productsInSubcategory;
 
