@@ -48,8 +48,14 @@ where code is not null and btrim(code) <> '';
 
 alter table public.productos drop constraint if exists productos_slug_key;
 
-create unique index if not exists productos_category_slug_unique_idx
-on public.productos (lower(btrim(category)), slug);
+drop index if exists public.productos_category_slug_unique_idx;
+
+create unique index if not exists productos_category_subcategory_slug_unique_idx
+on public.productos (
+  lower(btrim(category)),
+  lower(btrim(coalesce(subcategory, ''))),
+  slug
+);
 
 create unique index if not exists clientes_dni_unique_idx
 on public.clientes (btrim(dni))

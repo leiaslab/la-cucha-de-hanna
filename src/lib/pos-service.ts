@@ -368,10 +368,13 @@ function mapProductInput(input: ProductInput, preferredLocalId?: number | null) 
   };
 }
 
-async function expectSingle<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>) {
+async function expectSingle<T>(
+  promise: PromiseLike<{ data: T | null; error: { message: string } | null }>,
+  mapErrorMessage?: (message: string) => string,
+) {
   const { data, error } = await promise;
   if (error) {
-    throw new Error(error.message);
+    throw new Error(mapErrorMessage?.(error.message) ?? error.message);
   }
   if (!data) {
     throw new Error("No se encontro el registro solicitado.");
@@ -715,6 +718,7 @@ export async function createProduct(input: ProductInput, sessionUser?: SessionUs
       .insert(mapProductInput(input, preferredLocalId))
       .select("*")
       .single(),
+    productWriteErrorMessage,
   );
 
   const createdProduct = row as ProductRow;
@@ -747,6 +751,7 @@ export async function updateProduct(id: number, input: ProductInput, sessionUser
       .eq("id", id)
       .select("*")
       .single(),
+    productWriteErrorMessage,
   );
 
   const updatedProduct = row as ProductRow;
@@ -864,7 +869,7 @@ export async function moveProductCategory(sourceCategory: string, targetCategory
     .select("id");
 
   if (error) {
-    if (error.message.includes("productos_category_slug_unique_idx")) {
+    if (error.message.includes("productos_category_subcategory_slug_unique_idx")) {
       throw new Error(
         "No se pueden unir esas categorias porque contienen productos con el mismo nombre.",
       );
@@ -877,6 +882,14 @@ export async function moveProductCategory(sourceCategory: string, targetCategory
   }
 
   return data.length;
+}
+
+function productWriteErrorMessage(message: string) {
+  if (message.includes("productos_category_subcategory_slug_unique_idx")) {
+    return "Ya existe un producto con ese nombre en la misma categoria y subcategoria.";
+  }
+
+  return message;
 }
 
 export async function deleteProductCategory(category: string) {
