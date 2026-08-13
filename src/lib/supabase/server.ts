@@ -12,13 +12,3 @@ export function createServiceRoleSupabaseClient() {
     },
   });
 }
-
-export function createAnonSupabaseClient() {
-  const serverEnv = getServerEnv();
-  return createClient(serverEnv.supabaseUrl, serverEnv.supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}

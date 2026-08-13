@@ -6,10 +6,11 @@ import { APP_SESSION_COOKIE, getFallbackAdminCredentials, getFallbackAdminUser }
 import type { SessionUser } from "./pos-types";
 
 type SessionEnvelope = {
-  exp: number;
   user: SessionUser;
-  v: 1;
+  v: 1 | 2;
 };
+
+const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 400;
 
 function toBase64Url(value: Buffer | string) {
   return Buffer.from(value)
@@ -40,8 +41,7 @@ function signValue(value: string) {
 
 export function createSessionToken(user: SessionUser) {
   const payload: SessionEnvelope = {
-    v: 1,
-    exp: Date.now() + 1000 * 60 * 60 * 12,
+    v: 2,
     user,
   };
   const encodedPayload = toBase64Url(JSON.stringify(payload));
@@ -72,7 +72,7 @@ export function readSessionToken(token?: string | null) {
 
   try {
     const payload = JSON.parse(fromBase64Url(encodedPayload).toString("utf8")) as SessionEnvelope;
-    if (payload.v !== 1 || payload.exp <= Date.now()) {
+    if ((payload.v !== 1 && payload.v !== 2) || !payload.user) {
       return null;
     }
 
@@ -94,7 +94,7 @@ export async function setCurrentSessionUser(user: SessionUser) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 12,
+    maxAge: SESSION_COOKIE_MAX_AGE_SECONDS,
   });
 }
 

@@ -26,6 +26,16 @@ import type {
 } from "./pos-types";
 import { hydrateRemoteSnapshot } from "./remote-cache";
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function readJson<T>(response: Response) {
   const payload = (await response.json().catch(() => null)) as
     | { data?: T; error?: string; details?: string }
@@ -33,7 +43,10 @@ async function readJson<T>(response: Response) {
 
   if (!response.ok) {
     const message = payload?.error ?? "La solicitud fallo.";
-    throw new Error(payload?.details ? `${message} ${payload.details}` : message);
+    throw new ApiRequestError(
+      payload?.details ? `${message} ${payload.details}` : message,
+      response.status,
+    );
   }
 
   if (!payload?.data) {

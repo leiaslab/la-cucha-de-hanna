@@ -191,6 +191,8 @@ create table if not exists public.pdfs (
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
+security invoker
+set search_path = ''
 as $$
 begin
   new.updated_at = timezone('utc', now());
@@ -240,7 +242,8 @@ on conflict (product_id, local_id) do nothing;
 create or replace function public.create_sale(p_payload jsonb)
 returns bigint
 language plpgsql
-security definer
+security invoker
+set search_path = ''
 as $$
 declare
   v_sale_id bigint;
@@ -372,7 +375,8 @@ create or replace function public.open_shift(
 )
 returns bigint
 language plpgsql
-security definer
+security invoker
+set search_path = ''
 as $$
 declare
   v_shift_id bigint;
@@ -443,7 +447,8 @@ create or replace function public.close_shift(
 )
 returns bigint
 language plpgsql
-security definer
+security invoker
+set search_path = ''
 as $$
 declare
   v_cash_sales double precision;
@@ -532,7 +537,8 @@ create or replace function public.reset_sales_data(
 )
 returns jsonb
 language plpgsql
-security definer
+security invoker
+set search_path = ''
 as $$
 declare
   v_sale_ids bigint[] := '{}'::bigint[];
@@ -640,3 +646,39 @@ begin
   );
 end;
 $$;
+
+-- La aplicacion accede a Supabase exclusivamente desde el servidor con service_role.
+-- Los roles publicos no deben consultar ni modificar estas tablas o funciones.
+alter table public.clientes enable row level security;
+alter table public.productos enable row level security;
+alter table public.locales enable row level security;
+alter table public.app_users enable row level security;
+alter table public.arqueos enable row level security;
+alter table public.ventas enable row level security;
+alter table public.detalle_ventas enable row level security;
+alter table public.movimientos enable row level security;
+alter table public.pdfs enable row level security;
+alter table public.productos_stock_local enable row level security;
+
+revoke all on schema public from public, anon, authenticated;
+revoke all privileges on all tables in schema public from public, anon, authenticated;
+revoke all privileges on all sequences in schema public from public, anon, authenticated;
+revoke execute on all functions in schema public from public, anon, authenticated;
+
+grant usage on schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant all privileges on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;
+
+alter default privileges for role postgres in schema public
+  revoke all on tables from public, anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on sequences from public, anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke execute on functions from public, anon, authenticated;
+alter default privileges for role postgres in schema public
+  grant all on tables to service_role;
+alter default privileges for role postgres in schema public
+  grant all on sequences to service_role;
+alter default privileges for role postgres in schema public
+  grant execute on functions to service_role;

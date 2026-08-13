@@ -16,7 +16,6 @@ function readOptionalEnv(name: string, fallback?: string) {
 export function getServerEnv() {
   return {
     supabaseUrl: readEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
-    supabaseAnonKey: readEnv("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     supabaseServiceRoleKey: readEnv("SUPABASE_SERVICE_ROLE_KEY"),
     googleDriveClientEmail: readEnv("GOOGLE_DRIVE_CLIENT_EMAIL"),
     googleDrivePrivateKey: readEnv("GOOGLE_DRIVE_PRIVATE_KEY").replace(/\\n/g, "\n"),

@@ -14,6 +14,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = await getCurrentSessionUser();
 
+  if (user) {
+    await setCurrentSessionUser(user);
+  }
+
   return NextResponse.json({ data: { authenticated: Boolean(user), user } });
 }
 

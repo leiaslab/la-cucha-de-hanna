@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { syncRemoteSnapshot } from "../lib/api-client";
+import { ApiRequestError, syncRemoteSnapshot } from "../lib/api-client";
 
 async function clearLegacyOfflineArtifacts() {
   try {
@@ -20,7 +20,7 @@ async function clearLegacyOfflineArtifacts() {
 
 export function AppBootstrap({ children }: { children: React.ReactNode }) {
   const isSyncingRef = useRef(false);
-  const [syncError, setSyncError] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     const syncIfIdle = async () => {
@@ -28,10 +28,20 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
       isSyncingRef.current = true;
       try {
         await syncRemoteSnapshot();
-        setSyncError(false);
+        setSyncError(null);
       } catch (error) {
         console.error("No se pudo sincronizar el cache local con Supabase:", error);
-        setSyncError(true);
+
+        if (error instanceof ApiRequestError && error.status === 401) {
+          window.location.reload();
+          return;
+        }
+
+        setSyncError(
+          error instanceof ApiRequestError
+            ? "El servidor no pudo sincronizar los datos. Se volvera a intentar automaticamente."
+            : "Sin conexion con el servidor — mostrando datos locales.",
+        );
       } finally {
         isSyncingRef.current = false;
       }
@@ -62,10 +72,10 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
     <>
       {syncError && (
         <div className="sticky top-0 z-50 flex items-center justify-between bg-yellow-500 px-4 py-2 text-sm font-medium text-yellow-950">
-          <span>Sin conexión con el servidor — mostrando datos locales.</span>
+          <span>{syncError}</span>
           <button
             className="ml-4 rounded px-2 py-0.5 text-xs underline hover:no-underline"
-            onClick={() => setSyncError(false)}
+            onClick={() => setSyncError(null)}
           >
             Cerrar
           </button>
