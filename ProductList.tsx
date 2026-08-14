@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Product } from "./db";
 import { ProductCard } from "./ProductCard";
@@ -146,8 +146,12 @@ export function ProductList({
     }
   };
 
+  const handleToggleSale = useCallback((productId: number) => {
+    setActiveSaleProductId((current) => (current === productId ? null : productId));
+  }, []);
+
   return (
-    <div className={`flex h-full min-h-0 flex-col ${isKioskMode ? "gap-4 lg:gap-5" : "gap-4 md:gap-6"}`}>
+    <div className={`flex h-full min-h-0 flex-col ${isKioskMode ? "gap-3 lg:gap-4" : "gap-4 md:gap-6"}`}>
       <div
         className={`relative z-20 shrink-0 ${
           isKioskMode
@@ -259,9 +263,7 @@ export function ProductList({
                 isKioskMode={isKioskMode}
                 product={product}
                 isSelling={activeSaleProductId === product.id}
-                onToggleSale={() =>
-                  setActiveSaleProductId((current) => (current === product.id ? null : product.id ?? null))
-                }
+                onToggleSale={handleToggleSale}
               />
             ))}
           </div>

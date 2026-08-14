@@ -162,20 +162,20 @@ export function CartSidebar({
     <>
       <aside
         className={`hidden min-h-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 print:hidden ${
-          showWideLayout ? "lg:flex lg:h-full lg:p-3 xl:p-4" : "xl:flex xl:h-full xl:p-5"
+          showWideLayout ? "lg:flex lg:h-full lg:p-2.5 xl:p-3" : "xl:flex xl:h-full xl:p-4"
         }`}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
           <div>
-            <h2 className={`font-black text-slate-900 dark:text-slate-100 ${isKioskMode ? "text-[1.9rem]" : "text-2xl"}`}>
+            <h2 className={`font-black text-slate-900 dark:text-slate-100 ${isKioskMode ? "text-[1.55rem]" : "text-2xl"}`}>
               {cartItems?.length || 0} producto{(cartItems?.length || 0) === 1 ? "" : "s"}
             </h2>
           </div>
           <button
             type="button"
             onClick={onToggleTheme}
-            className={`touch-target flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 ${
-              isKioskMode ? "py-3 text-base" : "py-2 text-sm"
+            className={`touch-target flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2.5 ${
+              isKioskMode ? "py-2 text-sm" : "py-2 text-sm"
             } font-medium text-slate-700 shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50`}
             aria-pressed={isDarkMode}
             aria-label="Cambiar modo oscuro"
@@ -222,9 +222,9 @@ export function CartSidebar({
           </button>
         </div>
 
-        <div className={`flex-1 overflow-y-auto pr-1 ${isKioskMode ? "mt-3" : "mt-4"}`}>
+        <div className={`min-h-0 flex-1 overflow-y-auto pr-1 ${isKioskMode ? "mt-2" : "mt-3"}`}>
           {!cartItems || cartItems.length === 0 ? (
-            <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-[1.6rem] border border-dashed border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/20 px-6 text-center">
+            <div className="flex h-full min-h-[140px] flex-col items-center justify-center rounded-[1.6rem] border border-dashed border-slate-200 bg-white px-4 text-center dark:border-slate-700 dark:bg-slate-800/20">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Todavia no hay productos en el carrito.
               </p>
@@ -310,10 +310,10 @@ export function CartSidebar({
           )}
         </div>
 
-        <div className={`border-t border-slate-100 dark:border-slate-800 ${isKioskMode ? "mt-3 pt-3" : "mt-4 pt-4"}`}>
+        <div className={`border-t border-slate-100 dark:border-slate-800 ${isKioskMode ? "mt-2 pt-2" : "mt-3 pt-3"}`}>
           <div
             className={`rounded-[1.5rem] border border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-800 ${
-              isKioskMode ? "px-3 py-3" : "px-4 py-4"
+              isKioskMode ? "px-3 py-2.5" : "px-4 py-3"
             }`}
           >
             <ClientSelector
@@ -328,13 +328,13 @@ export function CartSidebar({
             )}
             <div
               className={`flex items-end justify-between gap-3 ${
-                isKioskMode ? "mt-3" : "mt-5"
+                isKioskMode ? "mt-2" : "mt-3"
               }`}
             >
               <span className={`${isKioskMode ? "text-xs" : "text-sm"} font-medium text-slate-500 dark:text-slate-400`}>
                 Total a cobrar
               </span>
-              <span className={`${isKioskMode ? "text-[2.2rem]" : "text-3xl"} font-black text-slate-900 dark:text-slate-50`}>
+              <span className={`${isKioskMode ? "text-[1.8rem]" : "text-3xl"} font-black text-slate-900 dark:text-slate-50`}>
                 ${total.toLocaleString("es-AR")}
               </span>
             </div>

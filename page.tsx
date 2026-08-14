@@ -25,6 +25,7 @@ import { ToastContainer } from "./Toast";
 type ThemeMode = "light" | "dark";
 
 const KIOSK_MODE_STORAGE_KEY = "app:kiosk-mode";
+const THEME_STORAGE_KEY = "theme";
 
 function parseKioskModeFromSearch(search: string) {
   const params = new URLSearchParams(search);
@@ -71,6 +72,40 @@ async function getOpenShiftForUser(userId: number | null | undefined) {
     .sort((a, b) => b.openedAt - a.openedAt)[0];
 }
 
+function CurrentDateTime() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const updateNow = () => setNow(new Date());
+    updateNow();
+    const intervalId = window.setInterval(updateNow, 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const currentTime = now
+    ? now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+    : "--:--";
+  const currentDate = now
+    ? now.toLocaleDateString("es-AR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "--/--/----";
+
+  return (
+    <div className="w-full px-1 text-center">
+      <p className="text-[10px] font-medium capitalize text-slate-500 dark:text-slate-300">
+        {currentDate}
+      </p>
+      <p className="text-sm font-black tracking-tight text-slate-900 dark:text-slate-50">
+        {currentTime}
+      </p>
+    </div>
+  );
+}
+
 export default function Home() {
   const { signOut, user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -86,8 +121,8 @@ export default function Home() {
   const [isProductLocalSelectorOpen, setIsProductLocalSelectorOpen] = useState(false);
   const [isThermalPrinterOpen, setIsThermalPrinterOpen] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
-  const [now, setNow] = useState<Date | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("light");
+  const [isThemeLoaded, setIsThemeLoaded] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [preferredProductLocalId, setPreferredProductLocalId] = useState<number | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -103,6 +138,8 @@ export default function Home() {
   const cartCount = useLiveQuery(() => db.cart.count()) || 0;
   const availableLocales = useLiveQuery(() => db.locals.orderBy("name").toArray(), []);
   const activeShift = useLiveQuery(() => getOpenShiftForUser(user?.id), [user?.id]);
+  const hasCurrentOpenShift =
+    activeShift === undefined ? hasOpenShift : Boolean(activeShift);
   const isOnline = useSyncExternalStore(
     subscribeToOnlineStatus,
     () => navigator.onLine,
@@ -157,20 +194,22 @@ export default function Home() {
   }, [isOnline, user]);
 
   useEffect(() => {
-    if (activeShift !== undefined) {
-      setHasOpenShift(Boolean(activeShift));
+    if (!user || hasCurrentOpenShift !== false) {
+      return;
     }
-  }, [activeShift]);
+
+    const timeoutId = window.setTimeout(() => setIsShiftModalOpen(true), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [hasCurrentOpenShift, user]);
 
   useEffect(() => {
-    if (user && hasOpenShift === false) {
-      setIsShiftModalOpen(true);
-    }
-  }, [hasOpenShift, user]);
+    const timeoutId = window.setTimeout(() => {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      setTheme(storedTheme === "dark" ? "dark" : "light");
+      setIsThemeLoaded(true);
+    }, 0);
 
-  useEffect(() => {
-    setTheme("light");
-    window.localStorage.setItem("theme", "light");
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {
@@ -214,6 +253,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!isThemeLoaded) {
+      return;
+    }
+
     const root = document.documentElement;
     const isDarkMode = theme === "dark";
 
@@ -228,8 +271,8 @@ export default function Home() {
 
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
-    window.localStorage.setItem("theme", theme);
-  }, [theme]);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [isThemeLoaded, theme]);
 
   const isKioskMode = kioskModePreference && isLargeViewport;
 
@@ -269,18 +312,6 @@ export default function Home() {
     };
   }, [isQuickMenuOpen]);
 
-  useEffect(() => {
-    setNow(new Date());
-
-    const intervalId = window.setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
     setPreferredProductLocalId(null);
@@ -313,21 +344,6 @@ export default function Home() {
   const isDarkMode = theme === "dark";
   const showWideCartSidebar = isKioskMode;
   const isTouchOptimized = isTouchViewport || isKioskMode;
-  const currentTime = now
-    ? now.toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "--:--";
-  const currentDate = now
-    ? now.toLocaleDateString("es-AR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    : "--/--/----";
-
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
@@ -404,8 +420,8 @@ export default function Home() {
         <div
           className={`grid ${
             isKioskMode
-              ? "h-full gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,32vw)] 2xl:grid-cols-[minmax(0,1fr)_430px]"
-              : "h-full gap-4 xl:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"
+              ? "h-full gap-3 lg:grid-cols-[minmax(0,1fr)_clamp(300px,27vw,370px)] xl:gap-4"
+              : "h-full gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-5"
           }`}
         >
           <section
@@ -428,7 +444,7 @@ export default function Home() {
                     width={152}
                     height={152}
                     className={`object-contain ${
-                      isKioskMode ? "h-20 w-20 sm:h-24 sm:w-24 lg:h-28 lg:w-28" : "h-16 w-16 sm:h-20 sm:w-20"
+                      isKioskMode ? "h-16 w-16 sm:h-20 sm:w-20 xl:h-24 xl:w-24" : "h-16 w-16 sm:h-20 sm:w-20"
                     }`}
                     priority
                   />
@@ -486,13 +502,8 @@ export default function Home() {
                       </span>
                     )}
                   </button>
-                  <div className={`w-full px-1 text-center ${isKioskMode ? "kiosk-secondary hidden" : "hidden xl:block"}`}>
-                    <p className="text-[10px] font-medium capitalize text-slate-500 dark:text-slate-300">
-                      {currentDate}
-                    </p>
-                    <p className="text-sm font-black tracking-tight text-slate-900 dark:text-slate-50">
-                      {currentTime}
-                    </p>
+                  <div className={isKioskMode ? "kiosk-secondary hidden" : "hidden xl:block"}>
+                    <CurrentDateTime />
                   </div>
                   <div className="relative" ref={quickMenuRef}>
                     <button
@@ -676,13 +687,13 @@ export default function Home() {
           currentUser={user}
           isOpen={isShiftModalOpen}
           onClose={() => {
-            if (hasOpenShift === false) {
+            if (hasCurrentOpenShift === false) {
               return;
             }
 
             setIsShiftModalOpen(false);
           }}
-          requireOpenShift={hasOpenShift === false}
+          requireOpenShift={hasCurrentOpenShift === false}
         />
       )}
 

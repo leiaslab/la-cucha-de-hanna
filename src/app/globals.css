@@ -226,6 +226,11 @@ html.dark img {
   filter: saturate(0.96) brightness(0.96);
 }
 
+.product-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 280px;
+}
+
 @media print {
   @page {
     margin: 8mm;

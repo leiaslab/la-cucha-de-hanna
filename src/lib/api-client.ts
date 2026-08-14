@@ -101,7 +101,7 @@ export async function saveProductRemote(product: ProductInput, productId?: numbe
       body: JSON.stringify(product),
     });
 
-  await syncRemoteSnapshot();
+  let cachedProduct = saved;
 
   if (saved.id && product.localStocks && product.localStocks.length > 0) {
     const knownLocales = await db.locals.toArray();
@@ -121,7 +121,7 @@ export async function saveProductRemote(product: ProductInput, productId?: numbe
       0,
     );
 
-    await db.products.put({
+    cachedProduct = {
       ...saved,
       stock: preferredLocalStock?.stock ?? saved.stock,
       globalStock,
@@ -129,10 +129,11 @@ export async function saveProductRemote(product: ProductInput, productId?: numbe
         preferredLocalStock?.lowStockAlertThreshold ?? saved.lowStockAlertThreshold,
       globalLowStockAlertThreshold,
       localStocks: normalizedLocalStocks,
-    });
+    };
   }
 
-  return saved;
+  await db.products.put(cachedProduct);
+  return cachedProduct;
 }
 
 export async function deleteProductRemote(productId: number) {

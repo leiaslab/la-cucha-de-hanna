@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { type Product } from "./db";
 import { formatPriceLabel, formatQuantity } from "./saleUtils";
 
@@ -9,14 +9,14 @@ interface ProductCardProps {
   isKioskMode?: boolean;
   product: Product;
   isSelling: boolean;
-  onToggleSale: () => void;
+  onToggleSale: (productId: number) => void;
 }
 
 function getAdaptiveFontSize(text: string, max: number, min: number, slope: number) {
   return `${Math.max(min, max - Math.max(0, text.length - 8) * slope).toFixed(2)}px`;
 }
 
-export function ProductCard({
+export const ProductCard = memo(function ProductCard({
   canManageProducts = false,
   isKioskMode = false,
   product,
@@ -68,18 +68,20 @@ export function ProductCard({
 
   return (
     <div
-      className={`group relative mx-auto w-full cursor-pointer overflow-hidden border border-blue-200/80 bg-[rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
+      className={`product-card group relative mx-auto w-full cursor-pointer overflow-hidden border border-blue-200/80 bg-[rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
         isKioskMode
           ? "max-w-[220px] rounded-[1.75rem] shadow-[0_18px_34px_rgba(59,130,246,0.18)]"
           : "max-w-[188px] rounded-[1.5rem] shadow-[0_14px_30px_rgba(59,130,246,0.14)]"
       } ${
         isSelling ? "shadow-md ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900" : ""
       }`}
-      onClick={onToggleSale}
+      onClick={() => product.id && onToggleSale(product.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onToggleSale();
+          if (product.id) {
+            onToggleSale(product.id);
+          }
         }
       }}
       role="button"
@@ -176,4 +178,4 @@ export function ProductCard({
       </div>
     </div>
   );
-}
+});

@@ -682,3 +682,70 @@ alter default privileges for role postgres in schema public
   grant all on sequences to service_role;
 alter default privileges for role postgres in schema public
   grant execute on functions to service_role;
+
+-- Cierra a las 00:05 de Argentina cualquier turno que haya quedado abierto
+-- durante el dia anterior. Al vivir en Postgres funciona aunque no haya ningun
+-- dispositivo con la aplicacion abierta.
+create extension if not exists pg_cron;
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+
+create or replace function private.close_previous_day_shifts()
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_shift record;
+  v_closed_count integer := 0;
+begin
+  for v_shift in
+    select id, opened_by_user_id
+    from public.arqueos
+    where status = 'open'
+      and opened_at < (
+        date_trunc('day', now() at time zone 'America/Argentina/Buenos_Aires')
+        at time zone 'America/Argentina/Buenos_Aires'
+      )
+    order by opened_at
+  loop
+    begin
+      perform public.close_shift(
+        v_shift.id,
+        'Cierre automatico diario',
+        v_shift.opened_by_user_id
+      );
+      v_closed_count := v_closed_count + 1;
+    exception when others then
+      raise warning 'No se pudo cerrar automaticamente el turno %: %', v_shift.id, sqlerrm;
+    end;
+  end loop;
+
+  return v_closed_count;
+end;
+$$;
+
+revoke all on function private.close_previous_day_shifts() from public, anon, authenticated;
+
+do $$
+declare
+  v_job_id bigint;
+begin
+  select jobid
+  into v_job_id
+  from cron.job
+  where jobname = 'close-daily-shifts-argentina';
+
+  if v_job_id is not null then
+    perform cron.unschedule(v_job_id);
+  end if;
+end;
+$$;
+
+select cron.schedule(
+  'close-daily-shifts-argentina',
+  '5 3 * * *',
+  $cron$select private.close_previous_day_shifts();$cron$
+);

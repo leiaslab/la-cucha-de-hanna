@@ -8,6 +8,7 @@ import {
   moveProductCategoryRemote,
   saveProductRemote,
 } from "./src/lib/api-client";
+import { optimizeProductImage } from "./imageUtils";
 
 type SaleMode = "unit" | "kg" | "liter";
 
@@ -128,6 +129,7 @@ export function ProductFormModal({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const availableLocales = useLiveQuery(() => db.locals.toArray());
   const [localStocks, setLocalStocks] = useState<LocalStockFormState[]>(() =>
     buildLocalStockFields(productToEdit, availableLocales, currentUser, preferredLocalId),
@@ -172,14 +174,6 @@ export function ProductFormModal({
   const preventWheelChange = (event: React.WheelEvent<HTMLInputElement>) => {
     event.currentTarget.blur();
   };
-  const readFileAsDataUrl = async (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ""));
-      reader.onerror = () => reject(new Error("No se pudo leer la imagen seleccionada."));
-      reader.readAsDataURL(file);
-    });
-
   useEffect(() => {
     return () => {
       if (previewObjectUrl) {
@@ -256,40 +250,43 @@ export function ProductFormModal({
       return;
     }
 
-    let nextImageUrl = trimmedImageUrl || productToEdit?.imageUrl || undefined;
-    if (imageFile) {
-      nextImageUrl = await readFileAsDataUrl(imageFile);
-    }
-
-    const preferredLocalStock =
-      normalizedLocalStocks.find((localStock) => localStock.localId === preferredLocalId) ??
-      normalizedLocalStocks.find((localStock) => localStock.localId === currentUser?.localId) ??
-      normalizedLocalStocks[0];
-
-    const productData = {
-      code: trimmedCode || undefined,
-      name: trimmedName,
-      slug: generateSlug(trimmedName),
-      price: parsedPrice,
-      cost: parsedCost,
-      stock: preferredLocalStock?.stock ?? 0,
-      preferredLocalId: preferredLocalStock?.localId ?? preferredLocalId ?? undefined,
-      lowStockAlertThreshold: preferredLocalStock?.lowStockAlertThreshold ?? 5,
-      category: trimmedCategory,
-      subcategory: trimmedSubcategory || undefined,
-      saleType,
-      stockUnit: normalizedStockUnit,
-      imageUrl: nextImageUrl,
-      description: trimmedDescription || undefined,
-      localStocks: normalizedLocalStocks,
-      lastUpdated: Date.now(),
-    };
-
     try {
+      setIsSaving(true);
+      let nextImageUrl = trimmedImageUrl || productToEdit?.imageUrl || undefined;
+      if (imageFile) {
+        nextImageUrl = await optimizeProductImage(imageFile);
+      }
+
+      const preferredLocalStock =
+        normalizedLocalStocks.find((localStock) => localStock.localId === preferredLocalId) ??
+        normalizedLocalStocks.find((localStock) => localStock.localId === currentUser?.localId) ??
+        normalizedLocalStocks[0];
+
+      const productData = {
+        code: trimmedCode || undefined,
+        name: trimmedName,
+        slug: generateSlug(trimmedName),
+        price: parsedPrice,
+        cost: parsedCost,
+        stock: preferredLocalStock?.stock ?? 0,
+        preferredLocalId: preferredLocalStock?.localId ?? preferredLocalId ?? undefined,
+        lowStockAlertThreshold: preferredLocalStock?.lowStockAlertThreshold ?? 5,
+        category: trimmedCategory,
+        subcategory: trimmedSubcategory || undefined,
+        saleType,
+        stockUnit: normalizedStockUnit,
+        imageUrl: nextImageUrl,
+        description: trimmedDescription || undefined,
+        localStocks: normalizedLocalStocks,
+        lastUpdated: Date.now(),
+      };
+
       await saveProductRemote(productData, productToEdit?.id);
       onClose();
     } catch (err) {
       setError("Error al guardar el producto: " + (err as Error).message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -800,15 +797,19 @@ export function ProductFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              disabled={isSaving}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              disabled={isSaving}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-400"
             >
-              {productToEdit ? "Actualizar" : "Agregar"} Producto
+              {isSaving
+                ? "Guardando..."
+                : `${productToEdit ? "Actualizar" : "Agregar"} Producto`}
             </button>
           </div>
         </form>
