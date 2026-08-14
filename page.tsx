@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Image from "next/image";
 import { useLiveQuery } from "dexie-react-hooks";
 import { CartModal } from "./CartModal";
 import { CartSidebar } from "./CartSidebar";
@@ -445,16 +446,23 @@ export default function Home() {
               isTouchOptimized={isTouchOptimized}
               leadingContent={
                 <div className="min-w-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                      Usuario activo
-                    </p>
-                    <p
-                      className={`mt-1 truncate font-black text-slate-900 ${
-                        isKioskMode ? "text-xl sm:text-2xl" : "text-base sm:text-lg"
-                      }`}
-                    >
-                      {user?.fullName ?? user?.username ?? "Sin usuario"}
-                    </p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Image
+                        src="/logo.png"
+                        alt=""
+                        width={44}
+                        height={44}
+                        className="h-10 w-10 shrink-0 object-contain"
+                        loading="eager"
+                      />
+                      <p
+                        className={`min-w-0 truncate font-black text-slate-900 dark:text-slate-100 ${
+                          isKioskMode ? "text-lg sm:text-xl" : "text-base sm:text-lg"
+                        }`}
+                      >
+                        {user?.fullName ?? user?.username ?? "Sin usuario"}
+                      </p>
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                       {user?.localName && (
                         <p className="text-sm font-medium text-slate-500">
