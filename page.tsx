@@ -71,7 +71,7 @@ async function getOpenShiftForUser(userId: number | null | undefined) {
     .sort((a, b) => b.openedAt - a.openedAt)[0];
 }
 
-function CurrentDateTime() {
+function CurrentDateTime({ compact = false }: { compact?: boolean }) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -85,20 +85,28 @@ function CurrentDateTime() {
     ? now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
     : "--:--";
   const currentDate = now
-    ? now.toLocaleDateString("es-AR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
+    ? now.toLocaleDateString("es-AR", compact
+        ? { day: "2-digit", month: "2-digit", year: "numeric" }
+        : {
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
     : "--/--/----";
 
   return (
-    <div className="w-full px-1 text-center">
-      <p className="text-[10px] font-medium capitalize text-slate-500 dark:text-slate-300">
+    <div
+      className={
+        compact
+          ? "rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800"
+          : "w-full px-1 text-center"
+      }
+    >
+      <p className={`${compact ? "text-[9px]" : "text-[10px]"} font-medium capitalize text-slate-500 dark:text-slate-300`}>
         {currentDate}
       </p>
-      <p className="text-sm font-black tracking-tight text-slate-900 dark:text-slate-50">
+      <p className={`${compact ? "text-base leading-tight" : "text-sm"} font-black tracking-tight text-slate-900 dark:text-slate-50`}>
         {currentTime}
       </p>
     </div>
@@ -461,9 +469,7 @@ export default function Home() {
                         {isOffline ? "Offline" : "Online"}
                       </span>
                       {isKioskMode && (
-                        <span className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-                          Kiosco
-                        </span>
+                        <CurrentDateTime compact />
                       )}
                     </div>
                 </div>
