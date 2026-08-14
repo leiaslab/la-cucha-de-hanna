@@ -70,7 +70,7 @@ export const ProductCard = memo(function ProductCard({
     <div
       className={`product-card group relative mx-auto w-full cursor-pointer overflow-hidden border border-blue-200/80 bg-[rgba(59,130,246,0.14)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(59,130,246,0.2)] dark:border-slate-800 dark:bg-slate-900 ${
         isKioskMode
-          ? "max-w-[220px] rounded-[1.75rem] shadow-[0_18px_34px_rgba(59,130,246,0.18)]"
+          ? "max-w-[190px] rounded-[1.5rem] shadow-[0_18px_34px_rgba(59,130,246,0.18)]"
           : "max-w-[188px] rounded-[1.5rem] shadow-[0_14px_30px_rgba(59,130,246,0.14)]"
       } ${
         isSelling ? "shadow-md ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900" : ""
@@ -104,12 +104,12 @@ export const ProductCard = memo(function ProductCard({
 
         <div
           className={`relative flex items-center justify-center overflow-hidden bg-white shadow-inner dark:bg-slate-800/30 ${
-            isKioskMode ? "min-h-[11.5rem] rounded-[1.25rem]" : "min-h-[10rem] rounded-[1.05rem]"
+            isKioskMode ? "min-h-[9.5rem] rounded-[1.15rem]" : "min-h-[10rem] rounded-[1.05rem]"
           }`}
         >
           <div
             className={`flex items-center justify-center p-2 transition-transform duration-500 group-hover:scale-110 ${
-              isKioskMode ? "h-[10.8rem] w-[10.8rem]" : "h-[9.45rem] w-[9.45rem]"
+              isKioskMode ? "h-[8.8rem] w-[8.8rem]" : "h-[9.45rem] w-[9.45rem]"
             }`}
           >
             {displayUrl ? (

@@ -165,7 +165,7 @@ export function ProductList({
           }`}
         >
           {leadingContent && (
-            <div className={`${isKioskMode ? "lg:min-w-[18rem] lg:self-end" : "shrink-0 xl:self-end"}`}>
+            <div className={`${isKioskMode ? "lg:w-[9.5rem] lg:shrink-0 lg:self-end" : "shrink-0 xl:self-end"}`}>
               {leadingContent}
             </div>
           )}
@@ -177,7 +177,7 @@ export function ProductList({
             }}
             className={`appearance-none rounded-full border border-slate-200 bg-white pl-4 pr-10 font-semibold text-slate-700 outline-none shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${
               isKioskMode
-                ? "touch-target py-3.5 text-base lg:w-44"
+                ? "touch-target py-3.5 text-base lg:w-36"
                 : "touch-target py-3 text-sm xl:w-40"
             }`}
             style={{
@@ -200,7 +200,7 @@ export function ProductList({
             onChange={(e) => setSelectedSubcategory(e.target.value || null)}
             disabled={!selectedCategory || uniqueSubcategories.length === 0}
             className={`appearance-none rounded-full border border-slate-200 bg-white pl-4 pr-10 font-semibold text-slate-700 outline-none shadow-[0_10px_25px_rgba(15,23,42,0.06)] transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 ${
-              isKioskMode ? "touch-target py-3.5 text-base lg:w-48" : "touch-target py-3 text-sm xl:w-44"
+              isKioskMode ? "touch-target py-3.5 text-base lg:w-40" : "touch-target py-3 text-sm xl:w-44"
             }`}
           >
             <option value="">Todas las subcategorias</option>
@@ -252,7 +252,7 @@ export function ProductList({
           <div
             className={`grid grid-cols-2 ${
               isKioskMode
-                ? "gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+                ? "gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-6"
                 : "gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
             }`}
           >

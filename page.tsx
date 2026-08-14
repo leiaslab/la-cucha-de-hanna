@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { CartModal } from "./CartModal";
@@ -420,7 +419,7 @@ export default function Home() {
         <div
           className={`grid ${
             isKioskMode
-              ? "h-full gap-3 lg:grid-cols-[minmax(0,1fr)_clamp(300px,27vw,370px)] xl:gap-4"
+              ? "h-full gap-3 lg:grid-cols-[minmax(0,1fr)_clamp(250px,22vw,290px)] xl:gap-4"
               : "h-full gap-4 xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-5"
           }`}
         >
@@ -437,18 +436,7 @@ export default function Home() {
               isKioskMode={isKioskMode}
               isTouchOptimized={isTouchOptimized}
               leadingContent={
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <Image
-                    src="/logo.png"
-                    alt="Logo La cucha de Hanna"
-                    width={152}
-                    height={152}
-                    className={`object-contain ${
-                      isKioskMode ? "h-16 w-16 sm:h-20 sm:w-20 xl:h-24 xl:w-24" : "h-16 w-16 sm:h-20 sm:w-20"
-                    }`}
-                    priority
-                  />
-                  <div className="min-w-0">
+                <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
                       Usuario activo
                     </p>
@@ -478,14 +466,13 @@ export default function Home() {
                         </span>
                       )}
                     </div>
-                  </div>
                 </div>
               }
               extraControls={
                 <div
                   className={`flex flex-col gap-2 ${
                     isKioskMode
-                      ? "lg:w-[210px] lg:items-stretch"
+                      ? "lg:w-[140px] lg:items-stretch"
                       : "w-full sm:w-auto sm:flex-row sm:flex-wrap xl:w-[170px] xl:flex-col xl:items-stretch"
                   }`}
                 >
