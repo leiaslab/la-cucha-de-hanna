@@ -108,7 +108,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-center text-white">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-300">
-            PepShop POS
+            VENTAS
           </p>
           <p className="mt-3 text-lg font-semibold text-slate-100">Verificando acceso...</p>
         </div>
@@ -122,13 +122,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
           <div className="mb-6 text-center">
             <Image
-              src="/logo.png"
-              alt="Logo La Cucha de Hanna"
+              src="/ventas-icon.png"
+              alt="Icono de VENTAS"
               width={132}
               height={132}
-              className="mx-auto h-28 w-28 object-contain"
-              priority
+              className="mx-auto h-24 w-24 rounded-2xl object-contain shadow-lg"
+              loading="eager"
             />
+            <h1 className="mt-4 text-2xl font-black tracking-[0.18em] text-slate-900">
+              VENTAS
+            </h1>
             <p className="mt-3 text-sm text-slate-500">
               Ingresa con tu usuario y clave para abrir la caja.
             </p>

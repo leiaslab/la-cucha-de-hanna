@@ -5,12 +5,11 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "La cucha de Hanna",
-  description: "Gestion de stock, catalogo y ventas offline para La cucha de Hanna.",
+  title: "VENTAS",
+  description: "Sistema de ventas, stock y caja para multiples locales.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/icons/icon-192x192.png",
+    apple: "/icons/icon-192x192.png?v=2",
   },
 };
 
