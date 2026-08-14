@@ -21,6 +21,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const checkoutInProgressRef = useRef(false);
   const activeShift = useLiveQuery(async () => {
     if (!currentUser) {
@@ -124,6 +125,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
 
     try {
       checkoutInProgressRef.current = true;
+      setIsCheckoutProcessing(true);
       await finalizeLocalOrder({
         cartItems,
         total,
@@ -143,6 +145,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
       showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
     } finally {
       checkoutInProgressRef.current = false;
+      setIsCheckoutProcessing(false);
     }
   };
 
@@ -363,7 +366,12 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
 
       <PaymentMethodDialog
         isOpen={isPaymentDialogOpen}
-        onClose={() => setIsPaymentDialogOpen(false)}
+        isProcessing={isCheckoutProcessing}
+        onClose={() => {
+          if (!isCheckoutProcessing) {
+            setIsPaymentDialogOpen(false);
+          }
+        }}
         onSelect={(paymentMethod) => void handleCheckout(paymentMethod)}
       />
     </div>

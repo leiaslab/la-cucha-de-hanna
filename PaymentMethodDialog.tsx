@@ -5,6 +5,7 @@ import { type PaymentMethod } from "./db";
 
 interface PaymentMethodDialogProps {
   isOpen: boolean;
+  isProcessing?: boolean;
   onClose: () => void;
   onSelect: (paymentMethod: PaymentMethod) => void;
 }
@@ -39,6 +40,7 @@ export function getPaymentMethodLabel(paymentMethod: PaymentMethod) {
 
 export function PaymentMethodDialog({
   isOpen,
+  isProcessing = false,
   onClose,
   onSelect,
 }: PaymentMethodDialogProps) {
@@ -54,6 +56,11 @@ export function PaymentMethodDialog({
     dialogRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isProcessing) {
+        event.preventDefault();
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
@@ -80,6 +87,8 @@ export function PaymentMethodDialog({
       const numberIndex = Number(event.key) - 1;
       if (numberIndex >= 0 && numberIndex < PAYMENT_OPTIONS.length) {
         event.preventDefault();
+        selectedIndexRef.current = numberIndex;
+        setSelectedIndex(numberIndex);
         onSelect(PAYMENT_OPTIONS[numberIndex].value);
         return;
       }
@@ -92,7 +101,7 @@ export function PaymentMethodDialog({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose, onSelect]);
+  }, [isOpen, isProcessing, onClose, onSelect]);
 
   if (!isOpen) {
     return null;
@@ -101,7 +110,11 @@ export function PaymentMethodDialog({
   return (
     <div
       className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={() => {
+        if (!isProcessing) {
+          onClose();
+        }
+      }}
     >
       <div
         ref={dialogRef}
@@ -111,17 +124,20 @@ export function PaymentMethodDialog({
       >
         <div className="relative border-b border-slate-100 pb-4 text-center dark:border-slate-800">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">
-            Forma de pago
+            {isProcessing ? "Confirmando venta" : "Forma de pago"}
           </p>
           <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">
-            Como queres cobrar?
+            {isProcessing ? "Procesando cobro..." : "Como queres cobrar?"}
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-            Flechas para elegir, Enter para confirmar. Atajos: 1, 2 o 3.
+            {isProcessing
+              ? "Guardando la venta y actualizando el stock."
+              : "Flechas para elegir, Enter para confirmar. Atajos: 1, 2 o 3."}
           </p>
           <button
             type="button"
             onClick={onClose}
+            disabled={isProcessing}
             className="absolute right-0 top-0 rounded-2xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cerrar
@@ -129,13 +145,20 @@ export function PaymentMethodDialog({
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          {PAYMENT_OPTIONS.map((option) => (
+          {PAYMENT_OPTIONS.map((option, optionIndex) => (
             <button
               key={option.value}
               type="button"
-              onClick={() => onSelect(option.value)}
-              className={`rounded-[1.6rem] border px-4 py-5 text-center transition-all hover:-translate-y-0.5 ${
-                selectedIndex === PAYMENT_OPTIONS.indexOf(option)
+              disabled={isProcessing}
+              onClick={() => {
+                selectedIndexRef.current = optionIndex;
+                setSelectedIndex(optionIndex);
+                onSelect(option.value);
+              }}
+              className={`rounded-[1.6rem] border px-4 py-5 text-center transition-all disabled:cursor-wait disabled:opacity-55 ${
+                isProcessing ? "" : "hover:-translate-y-0.5"
+              } ${
+                selectedIndex === optionIndex
                   ? "ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900"
                   : ""
               } ${
@@ -181,7 +204,9 @@ export function PaymentMethodDialog({
                 {option.label}
               </span>
               <span className="mt-2 block text-xs font-medium text-slate-500 dark:text-slate-400">
-                {option.value === "cash"
+                {isProcessing && selectedIndex === optionIndex
+                  ? "Procesando..."
+                  : option.value === "cash"
                   ? "Cobro rapido en caja"
                   : option.value === "mercado_pago"
                     ? "Pago digital inmediato"

@@ -382,6 +382,195 @@ begin
 end;
 $$;
 
+create index if not exists arqueos_open_user_latest_idx
+on public.arqueos (opened_by_user_id, opened_at desc)
+where status = 'open';
+
+create index if not exists detalle_ventas_sale_id_idx
+on public.detalle_ventas (sale_id);
+
+create or replace function public.create_sale_fast(p_payload jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_sale_id bigint;
+  v_item jsonb;
+  v_shift_id bigint;
+  v_product_id bigint;
+  v_quantity double precision;
+  v_payment_method text;
+  v_user_id bigint;
+  v_local_id bigint;
+  v_order jsonb;
+  v_shift jsonb;
+  v_stock_updates jsonb;
+begin
+  v_user_id := nullif((p_payload ->> 'user_id')::bigint, 0);
+  v_payment_method := nullif(p_payload ->> 'payment_method', '');
+
+  select id, local_id
+  into v_shift_id, v_local_id
+  from public.arqueos
+  where status = 'open'
+    and (
+      (v_user_id is null and opened_by_user_id is null)
+      or opened_by_user_id = v_user_id
+    )
+  order by opened_at desc
+  limit 1;
+
+  if v_shift_id is null then
+    raise exception 'No hay turno abierto para este usuario.';
+  end if;
+
+  insert into public.ventas (
+    client_id,
+    user_id,
+    local_id,
+    total,
+    status,
+    notes,
+    payment_method,
+    shift_id
+  )
+  values (
+    nullif((p_payload ->> 'client_id')::bigint, 0),
+    v_user_id,
+    v_local_id,
+    coalesce((p_payload ->> 'total')::double precision, 0),
+    'synced',
+    nullif(p_payload ->> 'notes', ''),
+    v_payment_method,
+    v_shift_id
+  )
+  returning id into v_sale_id;
+
+  for v_item in
+    select value from jsonb_array_elements(coalesce(p_payload -> 'items', '[]'::jsonb))
+  loop
+    v_product_id := (v_item ->> 'product_id')::bigint;
+    v_quantity := coalesce((v_item ->> 'quantity')::double precision, 0);
+
+    if v_local_id is not null then
+      update public.productos_stock_local
+      set stock = stock - v_quantity
+      where product_id = v_product_id
+        and local_id = v_local_id
+        and stock >= v_quantity;
+
+      if not found then
+        raise exception 'Stock insuficiente en el local para el producto ID %', v_product_id;
+      end if;
+    end if;
+
+    update public.productos
+    set stock = stock - v_quantity,
+        last_updated = timezone('utc', now())
+    where id = v_product_id
+      and stock >= v_quantity;
+
+    if not found then
+      raise exception 'Stock global insuficiente para el producto ID %', v_product_id;
+    end if;
+
+    insert into public.detalle_ventas (
+      sale_id,
+      product_id,
+      name,
+      price,
+      quantity,
+      category,
+      sale_type,
+      stock_unit,
+      step
+    )
+    values (
+      v_sale_id,
+      v_product_id,
+      coalesce(v_item ->> 'name', ''),
+      coalesce((v_item ->> 'price')::double precision, 0),
+      v_quantity,
+      coalesce(v_item ->> 'category', 'Varios'),
+      coalesce(v_item ->> 'sale_type', 'fixed'),
+      coalesce(v_item ->> 'stock_unit', 'unit'),
+      coalesce((v_item ->> 'step')::double precision, 1)
+    );
+  end loop;
+
+  insert into public.movimientos (
+    type,
+    amount,
+    payment_method,
+    description,
+    reference_type,
+    reference_id
+  )
+  values (
+    'sale',
+    coalesce((p_payload ->> 'total')::double precision, 0),
+    v_payment_method,
+    format('Venta #%s', v_sale_id),
+    'sale',
+    v_sale_id
+  );
+
+  select
+    to_jsonb(sale_row) || jsonb_build_object(
+      'detalle_ventas', coalesce(
+        (
+          select jsonb_agg(to_jsonb(detail_row) order by detail_row.id)
+          from public.detalle_ventas as detail_row
+          where detail_row.sale_id = v_sale_id
+        ),
+        '[]'::jsonb
+      )
+    )
+  into v_order
+  from public.ventas as sale_row
+  where sale_row.id = v_sale_id;
+
+  select to_jsonb(shift_row)
+  into v_shift
+  from public.arqueos as shift_row
+  where shift_row.id = v_shift_id;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'product_id', product_row.id,
+        'global_stock', product_row.stock,
+        'local_id', v_local_id,
+        'local_stock', local_stock_row.stock,
+        'last_updated', product_row.last_updated
+      )
+      order by product_row.id
+    ),
+    '[]'::jsonb
+  )
+  into v_stock_updates
+  from public.productos as product_row
+  left join public.productos_stock_local as local_stock_row
+    on local_stock_row.product_id = product_row.id
+   and local_stock_row.local_id = v_local_id
+  where product_row.id in (
+    select distinct (item.value ->> 'product_id')::bigint
+    from jsonb_array_elements(coalesce(p_payload -> 'items', '[]'::jsonb)) as item(value)
+  );
+
+  return jsonb_build_object(
+    'order', v_order,
+    'shift', v_shift,
+    'stock_updates', v_stock_updates
+  );
+end;
+$$;
+
+revoke all on function public.create_sale_fast(jsonb) from public, anon, authenticated;
+grant execute on function public.create_sale_fast(jsonb) to service_role;
+
 create or replace function public.open_shift(
   p_opening_cash double precision,
   p_opening_note text default null,

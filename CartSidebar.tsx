@@ -25,6 +25,7 @@ export function CartSidebar({
   onToggleTheme,
 }: CartSidebarProps) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const checkoutInProgressRef = useRef(false);
   const activeShift = useLiveQuery(async () => {
@@ -111,6 +112,7 @@ export function CartSidebar({
 
     try {
       checkoutInProgressRef.current = true;
+      setIsCheckoutProcessing(true);
       await finalizeLocalOrder({
         cartItems,
         total,
@@ -127,6 +129,7 @@ export function CartSidebar({
       showToast("No se pudo procesar la venta. Verifica el stock o la conexion.", "error");
     } finally {
       checkoutInProgressRef.current = false;
+      setIsCheckoutProcessing(false);
     }
   };
 
@@ -364,7 +367,12 @@ export function CartSidebar({
 
       <PaymentMethodDialog
         isOpen={isPaymentDialogOpen}
-        onClose={() => setIsPaymentDialogOpen(false)}
+        isProcessing={isCheckoutProcessing}
+        onClose={() => {
+          if (!isCheckoutProcessing) {
+            setIsPaymentDialogOpen(false);
+          }
+        }}
         onSelect={(paymentMethod) => void handleCheckout(paymentMethod)}
       />
     </>

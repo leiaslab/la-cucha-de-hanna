@@ -189,8 +189,34 @@ export async function checkoutRemote(payload: CheckoutPayload) {
   });
 
   await db.transaction("rw", [db.products, db.orders, db.cart, db.shifts], async () => {
-    if (result.updatedProducts.length > 0) {
-      await db.products.bulkPut(result.updatedProducts);
+    if (result.stockUpdates.length > 0) {
+      const cachedProducts = await db.products.bulkGet(
+        result.stockUpdates.map((update) => update.productId),
+      );
+      const updatedProducts = cachedProducts.flatMap((product, index) => {
+        if (!product) {
+          return [];
+        }
+
+        const update = result.stockUpdates[index];
+        const localStocks = product.localStocks?.map((localStock) =>
+          update.localId && localStock.localId === update.localId && update.localStock != null
+            ? { ...localStock, stock: update.localStock }
+            : localStock,
+        );
+
+        return [{
+          ...product,
+          stock: update.localStock ?? update.globalStock,
+          globalStock: update.globalStock,
+          localStocks,
+          lastUpdated: update.lastUpdated,
+        }];
+      });
+
+      if (updatedProducts.length > 0) {
+        await db.products.bulkPut(updatedProducts);
+      }
     }
     await db.orders.put(result.order);
     if (result.shift?.id) {

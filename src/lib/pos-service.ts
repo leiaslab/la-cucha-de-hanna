@@ -16,6 +16,7 @@ import type {
   Product,
   ProductInput,
   ProductLocalStock,
+  ProductStockUpdate,
   RemoteSnapshot,
   SalesResetInput,
   SalesResetResult,
@@ -109,6 +110,20 @@ type ShiftRow = {
   expected_cash: number | null;
   counted_cash: number | null;
   cash_difference: number | null;
+};
+
+type FastCheckoutStockRow = {
+  product_id: number;
+  global_stock: number;
+  local_id: number | null;
+  local_stock: number | null;
+  last_updated: string;
+};
+
+type FastCheckoutResult = {
+  order: SaleRow;
+  shift: ShiftRow;
+  stock_updates: FastCheckoutStockRow[];
 };
 
 type ClientRow = {
@@ -1114,7 +1129,7 @@ export async function createCheckout(input: CheckoutPayload, sessionUser: Sessio
     })),
   };
 
-  const { data, error } = await supabase.rpc("create_sale", {
+  const { data, error } = await supabase.rpc("create_sale_fast", {
     p_payload: payload,
   });
 
@@ -1122,37 +1137,28 @@ export async function createCheckout(input: CheckoutPayload, sessionUser: Sessio
     throw new Error(error.message);
   }
 
-  const orderId = Number(data);
-  if (!Number.isFinite(orderId)) {
-    throw new Error("Supabase no devolvio un id de venta valido.");
+  const checkout = data as FastCheckoutResult | null;
+  if (!checkout?.order?.id || !checkout.shift?.id || !Array.isArray(checkout.stock_updates)) {
+    throw new Error("Supabase no devolvio una venta valida.");
   }
 
-  const order = await getOrderById(orderId);
-  const productIds = input.cartItems.map((item) => item.productId);
-  const [productRows, productLocalStockRows, localRows] = await Promise.all([
-    expectMany(supabase.from("productos").select("*").in("id", productIds)),
-    sessionUser.localId
-      ? expectMany(
-          supabase
-            .from("productos_stock_local")
-            .select("*")
-            .eq("local_id", sessionUser.localId)
-            .in("product_id", productIds),
-        )
-      : Promise.resolve([] as ProductLocalStockRow[]),
-    sessionUser.localId
-      ? expectMany(supabase.from("locales").select("*").eq("id", sessionUser.localId))
-      : Promise.resolve([] as LocalRow[]),
-  ]);
-  const updatedProducts = (productRows as ProductRow[]).map((row) =>
-    mapProductRow(
-      row,
-      createProductLocalStockMap(productLocalStockRows as ProductLocalStockRow[]),
-      createLocalMap(localRows as LocalRow[]),
-      sessionUser.localId ?? null,
-    ),
-  );
-  const shift = order.shiftId ? await getShiftById(order.shiftId) : null;
+  const orderId = checkout.order.id;
+  const order = {
+    ...mapOrderRow(checkout.order),
+    userFullName: sessionUser.fullName,
+    localName: sessionUser.localName,
+  };
+  const shift = {
+    ...mapShiftRow(checkout.shift),
+    localName: sessionUser.localName,
+  };
+  const stockUpdates: ProductStockUpdate[] = checkout.stock_updates.map((row) => ({
+    productId: row.product_id,
+    globalStock: row.global_stock,
+    localId: row.local_id,
+    localStock: row.local_stock,
+    lastUpdated: toMillis(row.last_updated) ?? Date.now(),
+  }));
   let pdf: PdfGenerationResult | null = null;
 
   if (input.generatePdf) {
@@ -1165,7 +1171,9 @@ export async function createCheckout(input: CheckoutPayload, sessionUser: Sessio
 
   return {
     order,
-    updatedProducts,
+    stockUpdates,
+    // Keep older installed clients from failing after the sale was already committed.
+    updatedProducts: [],
     shift,
     pdf,
   };

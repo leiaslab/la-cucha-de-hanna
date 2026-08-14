@@ -209,8 +209,17 @@ export interface CheckoutPayload {
   generatePdf?: boolean;
 }
 
+export interface ProductStockUpdate {
+  productId: number;
+  globalStock: number;
+  localId?: number | null;
+  localStock?: number | null;
+  lastUpdated: number;
+}
+
 export interface CheckoutResult {
   order: Order;
+  stockUpdates: ProductStockUpdate[];
   updatedProducts: Product[];
   shift?: Shift | null;
   pdf?: PdfGenerationResult | null;
