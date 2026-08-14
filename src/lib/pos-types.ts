@@ -8,6 +8,7 @@ export type SalesResetScope = "day" | "month" | "all";
 export interface LocalRecord {
   id: number;
   name: string;
+  logoUrl?: string;
   thermalPrinterEnabled?: boolean;
   createdAt?: number;
   updatedAt?: number;
@@ -140,6 +141,7 @@ export interface LocalCreateInput {
 
 export interface LocalUpdateInput {
   name?: string;
+  logoUrl?: string | null;
   thermalPrinterEnabled?: boolean;
 }
 

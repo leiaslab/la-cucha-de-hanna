@@ -145,10 +145,14 @@ type AppUserReferenceRow = {
 type LocalRow = {
   id: number;
   name: string;
+  logo_url: string | null;
   thermal_printer_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
+
+const LOCAL_LOGO_DATA_URL_PATTERN = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i;
+const MAX_LOCAL_LOGO_DATA_URL_LENGTH = 400_000;
 
 function toMillis(value: string | null | undefined) {
   return value ? new Date(value).getTime() : undefined;
@@ -324,6 +328,7 @@ function mapLocalRow(row: LocalRow): LocalRecord {
   return {
     id: row.id,
     name: row.name,
+    logoUrl: row.logo_url ?? undefined,
     thermalPrinterEnabled: row.thermal_printer_enabled,
     createdAt: toMillis(row.created_at),
     updatedAt: toMillis(row.updated_at),
@@ -454,6 +459,7 @@ export async function updateLocal(localId: number, input: LocalUpdateInput): Pro
 
   const updates: {
     name?: string;
+    logo_url?: string | null;
     thermal_printer_enabled?: boolean;
   } = {};
 
@@ -477,6 +483,20 @@ export async function updateLocal(localId: number, input: LocalUpdateInput): Pro
 
   if (typeof input.thermalPrinterEnabled === "boolean") {
     updates.thermal_printer_enabled = input.thermalPrinterEnabled;
+  }
+
+  if (input.logoUrl !== undefined) {
+    const normalizedLogoUrl = input.logoUrl?.trim() || null;
+
+    if (
+      normalizedLogoUrl &&
+      (!LOCAL_LOGO_DATA_URL_PATTERN.test(normalizedLogoUrl) ||
+        normalizedLogoUrl.length > MAX_LOCAL_LOGO_DATA_URL_LENGTH)
+    ) {
+      throw new Error("El logo debe ser una imagen JPG, PNG o WebP de hasta 300 KB.");
+    }
+
+    updates.logo_url = normalizedLogoUrl;
   }
 
   if (Object.keys(updates).length === 0) {

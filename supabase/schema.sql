@@ -64,6 +64,7 @@ where dni is not null and btrim(dni) <> '';
 create table if not exists public.locales (
   id bigserial primary key,
   name text not null unique,
+  logo_url text,
   thermal_printer_enabled boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -135,6 +136,19 @@ alter table public.ventas
 
 alter table public.locales
   add column if not exists thermal_printer_enabled boolean not null default true;
+
+alter table public.locales
+  add column if not exists logo_url text;
+
+alter table public.locales
+  drop constraint if exists locales_logo_url_format_check;
+
+alter table public.locales
+  add constraint locales_logo_url_format_check
+  check (
+    logo_url is null
+    or logo_url ~ '^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$'
+  );
 
 alter table public.arqueos
   add column if not exists counted_cash double precision;

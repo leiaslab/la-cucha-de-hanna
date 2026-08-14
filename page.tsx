@@ -145,6 +145,7 @@ export default function Home() {
 
   const cartCount = useLiveQuery(() => db.cart.count()) || 0;
   const availableLocales = useLiveQuery(() => db.locals.orderBy("name").toArray(), []);
+  const activeLocal = availableLocales?.find((locale) => locale.id === user?.localId);
   const activeShift = useLiveQuery(() => getOpenShiftForUser(user?.id), [user?.id]);
   const hasCurrentOpenShift =
     activeShift === undefined ? hasOpenShift : Boolean(activeShift);
@@ -445,16 +446,19 @@ export default function Home() {
               isKioskMode={isKioskMode}
               isTouchOptimized={isTouchOptimized}
               leadingContent={
-                <div className="min-w-0">
+                  <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <Image
-                        src="/logo.png"
-                        alt=""
-                        width={44}
-                        height={44}
-                        className="h-10 w-10 shrink-0 object-contain"
-                        loading="eager"
-                      />
+                      {activeLocal?.logoUrl && (
+                        <Image
+                          src={activeLocal.logoUrl}
+                          alt={`Logo de ${activeLocal.name}`}
+                          width={44}
+                          height={44}
+                          unoptimized
+                          className="h-10 w-10 shrink-0 object-contain"
+                          loading="eager"
+                        />
+                      )}
                       <p
                         className={`min-w-0 truncate font-black text-slate-900 dark:text-slate-100 ${
                           isKioskMode ? "text-lg sm:text-xl" : "text-base sm:text-lg"
@@ -464,9 +468,9 @@ export default function Home() {
                       </p>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      {user?.localName && (
+                      {(activeLocal?.name ?? user?.localName) && (
                         <p className="text-sm font-medium text-slate-500">
-                          {user.localName}
+                          {activeLocal?.name ?? user?.localName}
                         </p>
                       )}
                       <span

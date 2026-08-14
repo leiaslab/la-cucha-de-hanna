@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import Image from "next/image";
+import { useState, type ChangeEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "./db";
+import { optimizeLocalLogo } from "./imageUtils";
 import { createLocalRemote, deleteLocalRemote, updateLocalRemote } from "./src/lib/api-client";
 import { showToast } from "./Toast";
 
@@ -19,6 +21,7 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
   const [editingLocalId, setEditingLocalId] = useState<number | null>(null);
   const [editingLocalName, setEditingLocalName] = useState("");
   const [isSavingLocal, setIsSavingLocal] = useState(false);
+  const [isUpdatingLogoLocalId, setIsUpdatingLogoLocalId] = useState<number | null>(null);
   const [isUpdatingPrinterLocalId, setIsUpdatingPrinterLocalId] = useState<number | null>(null);
   const [isDeletingLocalId, setIsDeletingLocalId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +111,54 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
       );
     } finally {
       setIsUpdatingPrinterLocalId(null);
+    }
+  };
+
+  const handleLocalLogoChange = async (
+    localId: number,
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setError(null);
+    setIsUpdatingLogoLocalId(localId);
+
+    try {
+      const logoUrl = await optimizeLocalLogo(file);
+      await updateLocalRemote(localId, { logoUrl });
+      showToast("Logo del local actualizado.", "success");
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "No se pudo actualizar el logo del local.",
+      );
+    } finally {
+      input.value = "";
+      setIsUpdatingLogoLocalId(null);
+    }
+  };
+
+  const handleRemoveLocalLogo = async (localId: number) => {
+    setError(null);
+    setIsUpdatingLogoLocalId(localId);
+
+    try {
+      await updateLocalRemote(localId, { logoUrl: null });
+      showToast("Logo del local quitado.", "success");
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "No se pudo quitar el logo del local.",
+      );
+    } finally {
+      setIsUpdatingLogoLocalId(null);
     }
   };
 
@@ -257,6 +308,68 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
                                 </p>
                               </div>
                             </label>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex min-w-0 items-center gap-3">
+                                  {locale.logoUrl ? (
+                                    <Image
+                                      src={locale.logoUrl}
+                                      alt={`Logo de ${locale.name}`}
+                                      width={64}
+                                      height={64}
+                                      unoptimized
+                                      className="h-14 w-14 shrink-0 rounded-xl bg-white object-contain p-1 shadow-sm dark:bg-slate-900"
+                                    />
+                                  ) : (
+                                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-center text-[10px] font-medium text-slate-400 dark:border-slate-600 dark:bg-slate-900">
+                                      Sin logo
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                      Logo del local
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                      Aparece junto al nombre del usuario en la pantalla de venta.
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex shrink-0 flex-wrap gap-2">
+                                  <label
+                                    className={`cursor-pointer rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50 ${
+                                      isUpdatingLogoLocalId === locale.id
+                                        ? "pointer-events-none opacity-60"
+                                        : ""
+                                    }`}
+                                  >
+                                    {isUpdatingLogoLocalId === locale.id
+                                      ? "Guardando..."
+                                      : locale.logoUrl
+                                        ? "Cambiar logo"
+                                        : "Agregar logo"}
+                                    <input
+                                      type="file"
+                                      accept="image/jpeg,image/png,image/webp"
+                                      disabled={isUpdatingLogoLocalId === locale.id}
+                                      onChange={(event) =>
+                                        void handleLocalLogoChange(locale.id, event)
+                                      }
+                                      className="sr-only"
+                                    />
+                                  </label>
+                                  {locale.logoUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleRemoveLocalLogo(locale.id)}
+                                      disabled={isUpdatingLogoLocalId === locale.id}
+                                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    >
+                                      Quitar logo
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>

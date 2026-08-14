@@ -23,6 +23,10 @@ export async function PATCH(request: Request, context: RouteContext<"/api/locale
     const body = (await request.json()) as LocalUpdateInput;
     const updated = await updateLocal(localId, {
       name: typeof body.name === "string" ? body.name : undefined,
+      logoUrl:
+        body.logoUrl === null || typeof body.logoUrl === "string"
+          ? body.logoUrl
+          : undefined,
       thermalPrinterEnabled: body.thermalPrinterEnabled,
     });
     return NextResponse.json({ data: updated });

@@ -15,6 +15,8 @@ export async function downloadImageAsBlob(url: string): Promise<Blob | undefined
 
 const MAX_PRODUCT_IMAGE_SIDE = 1200;
 const MAX_UNCHANGED_IMAGE_BYTES = 700_000;
+const MAX_LOCAL_LOGO_SIDE = 256;
+const SUPPORTED_LOCAL_LOGO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
@@ -83,6 +85,72 @@ export async function optimizeProductImage(file: File) {
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error("No se pudo optimizar la imagen."))),
         "image/jpeg",
+        0.82,
+      );
+    });
+
+    return blobToDataUrl(optimizedBlob);
+  } finally {
+    releaseSource();
+  }
+}
+
+/**
+ * Convierte el logo de un local a una imagen WebP pequena. El limite evita que
+ * la configuracion del local vuelva pesada la sincronizacion en celulares.
+ */
+export async function optimizeLocalLogo(file: File) {
+  if (!SUPPORTED_LOCAL_LOGO_TYPES.has(file.type)) {
+    throw new Error("El logo debe ser una imagen JPG, PNG o WebP.");
+  }
+
+  let source: CanvasImageSource;
+  let sourceWidth: number;
+  let sourceHeight: number;
+  let releaseSource = () => {};
+
+  if (typeof createImageBitmap === "function") {
+    const bitmap = await createImageBitmap(file);
+    source = bitmap;
+    sourceWidth = bitmap.width;
+    sourceHeight = bitmap.height;
+    releaseSource = () => bitmap.close();
+  } else {
+    const objectUrl = URL.createObjectURL(file);
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("No se pudo abrir el logo seleccionado."));
+      element.src = objectUrl;
+    }).catch((error) => {
+      URL.revokeObjectURL(objectUrl);
+      throw error;
+    });
+    source = image;
+    sourceWidth = image.naturalWidth;
+    sourceHeight = image.naturalHeight;
+    releaseSource = () => URL.revokeObjectURL(objectUrl);
+  }
+
+  try {
+    const scale = Math.min(1, MAX_LOCAL_LOGO_SIDE / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("El navegador no pudo procesar el logo.");
+    }
+
+    context.drawImage(source, 0, 0, width, height);
+
+    const optimizedBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("No se pudo optimizar el logo."))),
+        "image/webp",
         0.82,
       );
     });
