@@ -142,12 +142,14 @@ export interface AppUserUpdateInput {
 export interface LocalCreateInput {
   name: string;
   thermalPrinterEnabled?: boolean;
+  productIds?: number[];
 }
 
 export interface LocalUpdateInput {
   name?: string;
   logoUrl?: string | null;
   thermalPrinterEnabled?: boolean;
+  productIds?: number[];
 }
 
 export interface ReservationPlanItem {

@@ -3,10 +3,131 @@
 import Image from "next/image";
 import { useState, type ChangeEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "./db";
+import { db, type Product } from "./db";
 import { optimizeLocalLogo } from "./imageUtils";
 import { createLocalRemote, deleteLocalRemote, updateLocalRemote } from "./src/lib/api-client";
 import { showToast } from "./Toast";
+
+interface ProductAssignmentPickerProps {
+  products: Product[];
+  selectedProductIds: Set<number>;
+  searchTerm: string;
+  onSearchTermChange: (value: string) => void;
+  onSelectionChange: (productIds: Set<number>) => void;
+}
+
+function ProductAssignmentPicker({
+  products,
+  selectedProductIds,
+  searchTerm,
+  onSearchTermChange,
+  onSelectionChange,
+}: ProductAssignmentPickerProps) {
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase("es");
+  const visibleProducts = products.filter((product) =>
+    !normalizedSearch ||
+    product.name.toLocaleLowerCase("es").includes(normalizedSearch) ||
+    product.code?.toLocaleLowerCase("es").includes(normalizedSearch) ||
+    product.category.toLocaleLowerCase("es").includes(normalizedSearch),
+  );
+
+  const toggleProduct = (productId: number) => {
+    const nextSelection = new Set(selectedProductIds);
+    if (nextSelection.has(productId)) {
+      nextSelection.delete(productId);
+    } else {
+      nextSelection.add(productId);
+    }
+    onSelectionChange(nextSelection);
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/70">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(event) => onSearchTermChange(event.target.value)}
+          className="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          placeholder="Buscar producto, codigo o categoria"
+        />
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onSelectionChange(
+                new Set([
+                  ...selectedProductIds,
+                  ...visibleProducts.flatMap((product) => (product.id ? [product.id] : [])),
+                ]),
+              )
+            }
+            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300"
+          >
+            Marcar visibles
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const visibleIds = new Set(visibleProducts.flatMap((product) => (product.id ? [product.id] : [])));
+              onSelectionChange(
+                new Set(Array.from(selectedProductIds).filter((productId) => !visibleIds.has(productId))),
+              );
+            }}
+            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Desmarcar visibles
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <span>{selectedProductIds.size} productos seleccionados</span>
+        <span>{visibleProducts.length} visibles</span>
+      </div>
+
+      <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+        {visibleProducts.length === 0 ? (
+          <p className="col-span-full rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+            No se encontraron productos.
+          </p>
+        ) : (
+          visibleProducts.map((product) => {
+            if (!product.id) {
+              return null;
+            }
+
+            return (
+              <label
+                key={product.id}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm transition ${
+                  selectedProductIds.has(product.id)
+                    ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30"
+                    : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedProductIds.has(product.id)}
+                  onChange={() => toggleProduct(product.id!)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
+                    {product.name}
+                  </span>
+                  <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                    {product.category}{product.code ? ` · Cod. ${product.code}` : ""}
+                  </span>
+                </span>
+              </label>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface LocalesModalProps {
   isOpen: boolean;
@@ -17,6 +138,8 @@ interface LocalesModalProps {
 export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalProps) {
   const [newLocalName, setNewLocalName] = useState("");
   const [newLocalPrinterEnabled, setNewLocalPrinterEnabled] = useState(true);
+  const [newLocalProductIds, setNewLocalProductIds] = useState<Set<number>>(() => new Set());
+  const [newLocalProductSearch, setNewLocalProductSearch] = useState("");
   const [isCreatingLocal, setIsCreatingLocal] = useState(false);
   const [editingLocalId, setEditingLocalId] = useState<number | null>(null);
   const [editingLocalName, setEditingLocalName] = useState("");
@@ -24,8 +147,13 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
   const [isUpdatingLogoLocalId, setIsUpdatingLogoLocalId] = useState<number | null>(null);
   const [isUpdatingPrinterLocalId, setIsUpdatingPrinterLocalId] = useState<number | null>(null);
   const [isDeletingLocalId, setIsDeletingLocalId] = useState<number | null>(null);
+  const [managingProductsLocalId, setManagingProductsLocalId] = useState<number | null>(null);
+  const [managedProductIds, setManagedProductIds] = useState<Set<number>>(() => new Set());
+  const [managedProductSearch, setManagedProductSearch] = useState("");
+  const [isSavingProductsLocalId, setIsSavingProductsLocalId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const availableLocales = useLiveQuery(() => db.locals.orderBy("name").toArray(), []);
+  const availableProducts = useLiveQuery(() => db.products.orderBy("name").toArray(), []);
 
   if (!isOpen) {
     return null;
@@ -46,9 +174,12 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
       const createdLocal = await createLocalRemote({
         name: trimmedName,
         thermalPrinterEnabled: newLocalPrinterEnabled,
+        productIds: Array.from(newLocalProductIds),
       });
       setNewLocalName("");
       setNewLocalPrinterEnabled(true);
+      setNewLocalProductIds(new Set());
+      setNewLocalProductSearch("");
       onLocalCreated?.(createdLocal.id);
       showToast(`Local "${createdLocal.name}" creado con exito.`, "success");
     } catch (createError) {
@@ -111,6 +242,46 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
       );
     } finally {
       setIsUpdatingPrinterLocalId(null);
+    }
+  };
+
+  const handleStartManageProducts = (localId: number) => {
+    setManagingProductsLocalId(localId);
+    setManagedProductIds(
+      new Set(
+        (availableProducts ?? []).flatMap((product) =>
+          product.id && product.localStocks?.some((localStock) => localStock.localId === localId)
+            ? [product.id]
+            : [],
+        ),
+      ),
+    );
+    setManagedProductSearch("");
+    setError(null);
+  };
+
+  const handleCancelManageProducts = () => {
+    setManagingProductsLocalId(null);
+    setManagedProductIds(new Set());
+    setManagedProductSearch("");
+  };
+
+  const handleSaveLocalProducts = async (localId: number) => {
+    setIsSavingProductsLocalId(localId);
+    setError(null);
+
+    try {
+      await updateLocalRemote(localId, { productIds: Array.from(managedProductIds) });
+      handleCancelManageProducts();
+      showToast("Productos del local actualizados.", "success");
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "No se pudieron actualizar los productos del local.",
+      );
+    } finally {
+      setIsSavingProductsLocalId(null);
     }
   };
 
@@ -189,7 +360,7 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 backdrop-blur-sm sm:py-6">
-      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100vh-3rem)]">
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100vh-3rem)]">
         <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
@@ -211,7 +382,7 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Nuevo local</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Crea el local primero y despues usalo al cargar productos o usuarios.
+            Elige solamente los productos que realmente existen en este local. Si no marcas ninguno, empieza vacio.
           </p>
 
           <div className="mt-3 space-y-3">
@@ -249,6 +420,29 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
                 </p>
               </div>
             </label>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    Productos de este local
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Solo los seleccionados apareceran en su pantalla de ventas.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                  {newLocalProductIds.size} elegidos
+                </span>
+              </div>
+              <ProductAssignmentPicker
+                products={availableProducts ?? []}
+                selectedProductIds={newLocalProductIds}
+                searchTerm={newLocalProductSearch}
+                onSearchTermChange={setNewLocalProductSearch}
+                onSelectionChange={setNewLocalProductIds}
+              />
+            </div>
           </div>
 
           {error && (
@@ -267,6 +461,10 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
             <div className="space-y-3">
               {(availableLocales ?? []).map((locale) => {
                 const isEditingLocal = editingLocalId === locale.id;
+                const isManagingProducts = managingProductsLocalId === locale.id;
+                const assignedProductCount = (availableProducts ?? []).filter((product) =>
+                  product.localStocks?.some((localStock) => localStock.localId === locale.id),
+                ).length;
 
                 return (
                   <div
@@ -397,6 +595,19 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
                           <>
                             <button
                               type="button"
+                              onClick={() =>
+                                isManagingProducts
+                                  ? handleCancelManageProducts()
+                                  : handleStartManageProducts(locale.id)
+                              }
+                              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
+                            >
+                              {isManagingProducts
+                                ? "Cerrar productos"
+                                : `Productos (${assignedProductCount})`}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleStartEditLocal(locale.id, locale.name)}
                               className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
@@ -414,6 +625,46 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
                         )}
                       </div>
                     </div>
+
+                    {isManagingProducts && (
+                      <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+                        <div className="mb-3">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                            Productos disponibles en {locale.name}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Los productos desmarcados dejan de aparecer en este local. Para quitar uno que tiene stock, primero deja su stock en cero.
+                          </p>
+                        </div>
+                        <ProductAssignmentPicker
+                          products={availableProducts ?? []}
+                          selectedProductIds={managedProductIds}
+                          searchTerm={managedProductSearch}
+                          onSearchTermChange={setManagedProductSearch}
+                          onSelectionChange={setManagedProductIds}
+                        />
+                        <div className="mt-3 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCancelManageProducts}
+                            disabled={isSavingProductsLocalId === locale.id}
+                            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveLocalProducts(locale.id)}
+                            disabled={isSavingProductsLocalId === locale.id}
+                            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isSavingProductsLocalId === locale.id
+                              ? "Guardando..."
+                              : "Guardar productos"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -238,21 +238,6 @@ before update on public.productos_stock_local
 for each row
 execute function public.touch_updated_at();
 
-insert into public.productos_stock_local (
-  product_id,
-  local_id,
-  stock,
-  low_stock_alert_threshold
-)
-select
-  productos.id,
-  locales.id,
-  productos.stock,
-  productos.low_stock_alert_threshold
-from public.productos
-cross join public.locales
-on conflict (product_id, local_id) do nothing;
-
 create or replace function public.create_sale(p_payload jsonb)
 returns bigint
 language plpgsql

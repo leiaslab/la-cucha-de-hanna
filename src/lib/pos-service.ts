@@ -475,6 +475,103 @@ async function listLocalRows() {
   return expectMany(supabase.from("locales").select("*").order("name"));
 }
 
+function normalizeLocalProductIds(productIds: number[] | undefined) {
+  return Array.from(
+    new Set(
+      (productIds ?? [])
+        .map((productId) => Number(productId))
+        .filter((productId) => Number.isInteger(productId) && productId > 0),
+    ),
+  );
+}
+
+async function getProductsForLocalAssignment(productIds: number[]) {
+  if (productIds.length === 0) {
+    return [] as Array<Pick<ProductRow, "id" | "low_stock_alert_threshold" | "sale_type">>;
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const products = (await expectMany(
+    supabase
+      .from("productos")
+      .select("id,low_stock_alert_threshold,sale_type")
+      .in("id", productIds),
+  )) as Array<Pick<ProductRow, "id" | "low_stock_alert_threshold" | "sale_type">>;
+
+  if (products.length !== productIds.length) {
+    throw new Error("Uno o mas productos seleccionados ya no existen.");
+  }
+
+  return products;
+}
+
+function mapLocalProductAssignments(
+  localId: number,
+  products: Array<Pick<ProductRow, "id" | "low_stock_alert_threshold" | "sale_type">>,
+) {
+  return products.map((product) => ({
+    product_id: product.id,
+    local_id: localId,
+    stock: 0,
+    low_stock_alert_threshold:
+      product.sale_type === "variable" ? 0 : product.low_stock_alert_threshold ?? 5,
+  }));
+}
+
+async function replaceLocalProductAssignments(localId: number, productIds: number[]) {
+  const supabase = createServiceRoleSupabaseClient();
+  const normalizedProductIds = normalizeLocalProductIds(productIds);
+  const selectedProducts = await getProductsForLocalAssignment(normalizedProductIds);
+  const currentAssignments = (await expectMany(
+    supabase
+      .from("productos_stock_local")
+      .select("product_id,stock")
+      .eq("local_id", localId),
+  )) as Array<{ product_id: number; stock: number }>;
+  const selectedProductIdSet = new Set(normalizedProductIds);
+  const currentProductIdSet = new Set(currentAssignments.map((assignment) => assignment.product_id));
+  const assignmentsToRemove = currentAssignments.filter(
+    (assignment) => !selectedProductIdSet.has(assignment.product_id),
+  );
+  const assignmentWithStock = assignmentsToRemove.find((assignment) => assignment.stock > 0);
+
+  if (assignmentWithStock) {
+    throw new Error(
+      "No se puede quitar un producto que todavia tiene stock en el local. Deja su stock en cero y vuelve a intentarlo.",
+    );
+  }
+
+  const assignmentsToInsert = mapLocalProductAssignments(
+    localId,
+    selectedProducts.filter((product) => !currentProductIdSet.has(product.id)),
+  );
+
+  if (assignmentsToInsert.length > 0) {
+    const { error: insertError } = await supabase
+      .from("productos_stock_local")
+      .insert(assignmentsToInsert);
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+  }
+
+  if (assignmentsToRemove.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("productos_stock_local")
+      .delete()
+      .eq("local_id", localId)
+      .in(
+        "product_id",
+        assignmentsToRemove.map((assignment) => assignment.product_id),
+      );
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+  }
+}
+
 export async function createLocal(input: LocalCreateInput): Promise<LocalRecord> {
   const supabase = createServiceRoleSupabaseClient();
   const normalizedName = input.name.trim();
@@ -503,23 +600,13 @@ export async function createLocal(input: LocalCreateInput): Promise<LocalRecord>
   );
 
   const createdLocal = created as LocalRow;
-  const products = (await expectMany(
-    supabase.from("productos").select("id,low_stock_alert_threshold"),
-  )) as Array<{ id: number; low_stock_alert_threshold: number | null }>;
+  const selectedProductIds = normalizeLocalProductIds(input.productIds);
 
-  if (products.length > 0) {
-    const { error: stockSeedError } = await supabase.from("productos_stock_local").insert(
-      products.map((product) => ({
-        product_id: product.id,
-        local_id: createdLocal.id,
-        stock: 0,
-        low_stock_alert_threshold: product.low_stock_alert_threshold ?? 5,
-      })),
-    );
-
-    if (stockSeedError) {
-      throw new Error(stockSeedError.message);
-    }
+  try {
+    await replaceLocalProductAssignments(createdLocal.id, selectedProductIds);
+  } catch (error) {
+    await supabase.from("locales").delete().eq("id", createdLocal.id);
+    throw error;
   }
 
   return mapLocalRow(createdLocal);
@@ -574,18 +661,32 @@ export async function updateLocal(localId: number, input: LocalUpdateInput): Pro
     updates.logo_url = normalizedLogoUrl;
   }
 
-  if (Object.keys(updates).length === 0) {
+  const hasProductAssignmentChanges = Array.isArray(input.productIds);
+
+  if (Object.keys(updates).length === 0 && !hasProductAssignmentChanges) {
     throw new Error("No hay cambios para guardar en el local.");
   }
 
-  const updated = await expectSingle(
-    supabase
-      .from("locales")
-      .update(updates)
-      .eq("id", localId)
-      .select("*")
-      .single(),
-  );
+  if (hasProductAssignmentChanges) {
+    await replaceLocalProductAssignments(localId, input.productIds ?? []);
+  }
+
+  const updated = Object.keys(updates).length > 0
+    ? await expectSingle(
+        supabase
+          .from("locales")
+          .update(updates)
+          .eq("id", localId)
+          .select("*")
+          .single(),
+      )
+    : await expectSingle(
+        supabase
+          .from("locales")
+          .select("*")
+          .eq("id", localId)
+          .single(),
+      );
 
   return mapLocalRow(updated as LocalRow);
 }
@@ -612,7 +713,11 @@ export async function deleteLocal(localId: number) {
   }
 }
 
-function normalizeProductLocalStocks(input: ProductInput, localRows: LocalRow[]) {
+function normalizeProductLocalStocks(
+  input: ProductInput,
+  localRows: LocalRow[],
+  preferredLocalId?: number | null,
+) {
   if (input.localStocks && input.localStocks.length > 0) {
     const uniqueStocks = new Map<number, ProductLocalStock>();
 
@@ -631,11 +736,16 @@ function normalizeProductLocalStocks(input: ProductInput, localRows: LocalRow[])
     return Array.from(uniqueStocks.values());
   }
 
-  return localRows.map((localRow) => ({
-    localId: localRow.id,
-    stock: Math.max(0, input.stock),
-    lowStockAlertThreshold: Math.max(0, input.lowStockAlertThreshold),
-  }));
+  const resolvedLocalId = input.preferredLocalId ?? preferredLocalId;
+  const preferredLocal = localRows.find((localRow) => localRow.id === resolvedLocalId);
+
+  return preferredLocal
+    ? [{
+        localId: preferredLocal.id,
+        stock: Math.max(0, input.stock),
+        lowStockAlertThreshold: Math.max(0, input.lowStockAlertThreshold),
+      }]
+    : [];
 }
 
 async function replaceProductLocalStocks(
@@ -784,10 +894,19 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
   const productIdsWithImages = new Set(
     (productImages as Array<{ id: number }>).map((product) => product.id),
   );
+  const productRows = products as Array<Omit<ProductRow, "image_url">>;
+  const assignedProductIds = new Set(
+    (productLocalStocks as ProductLocalStockRow[]).map((stockRow) => stockRow.product_id),
+  );
+  const visibleProductRows = isAdmin
+    ? productRows
+    : activeLocalId === null
+      ? []
+      : productRows.filter((product) => assignedProductIds.has(product.id));
 
   return {
     locales: (localRows as LocalRow[]).map(mapLocalRow),
-    products: (products as Array<Omit<ProductRow, "image_url">>).map((row) =>
+    products: visibleProductRows.map((row) =>
       mapProductRow(
         { ...row, image_url: productIdsWithImages.has(row.id) ? productImagePath(row.id, row.last_updated) : null },
         localStocksByProductId,
@@ -817,7 +936,7 @@ export async function createProduct(input: ProductInput, sessionUser?: SessionUs
   );
 
   const createdProduct = row as ProductRow;
-  const normalizedLocalStocks = normalizeProductLocalStocks(input, localRows);
+  const normalizedLocalStocks = normalizeProductLocalStocks(input, localRows, preferredLocalId);
   const localStockRows = await replaceProductLocalStocks(createdProduct.id, normalizedLocalStocks);
   const localNamesById = createLocalMap(localRows);
 
@@ -850,7 +969,7 @@ export async function updateProduct(id: number, input: ProductInput, sessionUser
   );
 
   const updatedProduct = row as ProductRow;
-  const normalizedLocalStocks = normalizeProductLocalStocks(input, localRows);
+  const normalizedLocalStocks = normalizeProductLocalStocks(input, localRows, preferredLocalId);
   const localStockRows = await replaceProductLocalStocks(updatedProduct.id, normalizedLocalStocks);
   const localNamesById = createLocalMap(localRows);
 
@@ -898,7 +1017,7 @@ export async function replaceProducts(products: ProductInput[], sessionUser?: Se
       return [];
     }
 
-    return normalizeProductLocalStocks(product, localRows).map((localStock) => ({
+    return normalizeProductLocalStocks(product, localRows, preferredLocalId).map((localStock) => ({
       product_id: insertedRow.id,
       local_id: localStock.localId,
       stock: localStock.stock,

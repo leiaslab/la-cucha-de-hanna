@@ -10,6 +10,7 @@ import { showToast } from "./Toast";
 
 interface ProductListProps {
   canManageProducts?: boolean;
+  activeLocalId?: number | null;
   onEditProduct: (product: Product) => void;
   extraControls?: ReactNode;
   leadingContent?: ReactNode;
@@ -19,6 +20,7 @@ interface ProductListProps {
 
 export function ProductList({
   canManageProducts = false,
+  activeLocalId,
   onEditProduct,
   extraControls,
   leadingContent,
@@ -36,30 +38,43 @@ export function ProductList({
     () => (activeSaleProductId === null ? undefined : db.products.get(activeSaleProductId)),
     [activeSaleProductId],
   );
+  const productsForActiveLocal = useMemo(() => {
+    if (!allProductsForCategories) {
+      return undefined;
+    }
+
+    if (!activeLocalId) {
+      return allProductsForCategories;
+    }
+
+    return allProductsForCategories.filter((product) =>
+      product.localStocks?.some((localStock) => localStock.localId === activeLocalId),
+    );
+  }, [activeLocalId, allProductsForCategories]);
 
   const uniqueCategories = useMemo(() => {
-    if (!allProductsForCategories) {
+    if (!productsForActiveLocal) {
       return [];
     }
-    return Array.from(new Set(allProductsForCategories.map((p) => p.category))).sort((a, b) =>
+    return Array.from(new Set(productsForActiveLocal.map((p) => p.category))).sort((a, b) =>
       a.localeCompare(b),
     );
-  }, [allProductsForCategories]);
+  }, [productsForActiveLocal]);
 
   const uniqueSubcategories = useMemo(() => {
-    if (!allProductsForCategories || !selectedCategory) {
+    if (!productsForActiveLocal || !selectedCategory) {
       return [];
     }
 
     return Array.from(
       new Set(
-        allProductsForCategories
+        productsForActiveLocal
           .filter((product) => product.category === selectedCategory)
           .map((product) => product.subcategory?.trim())
           .filter((value): value is string => Boolean(value)),
       ),
     ).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
-  }, [allProductsForCategories, selectedCategory]);
+  }, [productsForActiveLocal, selectedCategory]);
 
   const filteredProducts = useLiveQuery(async () => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -70,11 +85,16 @@ export function ProductList({
           : db.products.toCollection()
         ).toArray();
 
+    const productsAtActiveLocal = activeLocalId
+      ? products.filter((product) =>
+          product.localStocks?.some((localStock) => localStock.localId === activeLocalId),
+        )
+      : products;
     const productsInSubcategory = selectedSubcategory
       ? normalizedSearch
-        ? products
-        : products.filter((product) => product.subcategory === selectedSubcategory)
-      : products;
+        ? productsAtActiveLocal
+        : productsAtActiveLocal.filter((product) => product.subcategory === selectedSubcategory)
+      : productsAtActiveLocal;
     const visibleProducts = normalizedSearch
       ? productsInSubcategory.filter((p) =>
           p.code?.toLowerCase().includes(normalizedSearch) ||
@@ -100,14 +120,14 @@ export function ProductList({
         ? priceOrder
         : a.name.localeCompare(b.name, "es", { sensitivity: "base" });
     });
-  }, [searchTerm, selectedCategory, selectedSubcategory]);
+  }, [activeLocalId, searchTerm, selectedCategory, selectedSubcategory]);
 
   useEffect(() => {
-    if (!allProductsForCategories) {
+    if (!productsForActiveLocal) {
       return;
     }
 
-    const lowStockProducts = allProductsForCategories.filter((product) => {
+    const lowStockProducts = productsForActiveLocal.filter((product) => {
       if (product.saleType === "variable") {
         return false;
       }
@@ -139,7 +159,7 @@ export function ProductList({
         : `Stock bajo en ${lowStockProducts.length} productos. Revisa "Reporte stock".`,
       "warning",
     );
-  }, [allProductsForCategories, canManageProducts]);
+  }, [canManageProducts, productsForActiveLocal]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -228,7 +248,7 @@ export function ProductList({
               }
 
               const normalizedCode = searchTerm.trim().toLowerCase();
-              const exactProduct = allProductsForCategories?.find(
+              const exactProduct = productsForActiveLocal?.find(
                 (product) => product.code?.trim().toLowerCase() === normalizedCode,
               );
 

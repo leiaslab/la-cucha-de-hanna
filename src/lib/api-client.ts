@@ -397,7 +397,7 @@ export async function createLocalRemote(payload: LocalCreateInput) {
     body: JSON.stringify(payload),
   });
 
-  await db.locals.put(local);
+  await syncRemoteSnapshot();
   return local;
 }
 

@@ -444,6 +444,7 @@ export default function Home() {
           >
             <ProductList
               canManageProducts={user?.role === "admin"}
+              activeLocalId={user?.localId}
               onEditProduct={handleEditProduct}
               isKioskMode={isKioskMode}
               isTouchOptimized={isTouchOptimized}

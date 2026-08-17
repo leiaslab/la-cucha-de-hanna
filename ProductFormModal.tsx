@@ -31,48 +31,36 @@ function buildLocalStockFields(
 ): LocalStockFormState[] {
   const rows = new Map<number, LocalStockFormState>();
 
-  if (!productToEdit && preferredLocalId) {
-    const preferredLocal = (availableLocales ?? []).find((locale) => locale.id === preferredLocalId);
-    rows.set(preferredLocalId, {
-      localId: preferredLocalId,
-      localName: preferredLocal?.name ?? currentUser?.localName ?? "Local seleccionado",
-      stock: "0",
-      lowStockAlertThreshold: "5",
-    });
-  } else {
-    (availableLocales ?? []).forEach((locale) => {
-      rows.set(locale.id, {
-        localId: locale.id,
-        localName: locale.name,
+  if (!productToEdit) {
+    const initialLocalId = preferredLocalId ?? currentUser?.localId;
+    const initialLocal = (availableLocales ?? []).find((locale) => locale.id === initialLocalId);
+
+    if (initialLocalId) {
+      rows.set(initialLocalId, {
+        localId: initialLocalId,
+        localName: initialLocal?.name ?? currentUser?.localName ?? "Local seleccionado",
         stock: "0",
         lowStockAlertThreshold: "5",
       });
-    });
-  }
-
-  if ((productToEdit || !preferredLocalId) && currentUser?.localId && !rows.has(currentUser.localId)) {
-    rows.set(currentUser.localId, {
-      localId: currentUser.localId,
-      localName: currentUser.localName ?? "Local actual",
-      stock: "0",
-      lowStockAlertThreshold: "5",
-    });
+    }
   }
 
   (productToEdit?.localStocks ?? []).forEach((localStock) => {
     rows.set(localStock.localId, {
       localId: localStock.localId,
-      localName: localStock.localName ?? rows.get(localStock.localId)?.localName ?? `Local ${localStock.localId}`,
+      localName:
+        localStock.localName ??
+        (availableLocales ?? []).find((locale) => locale.id === localStock.localId)?.name ??
+        `Local ${localStock.localId}`,
       stock: String(localStock.stock),
       lowStockAlertThreshold: String(localStock.lowStockAlertThreshold ?? 5),
     });
   });
 
-  if (productToEdit && rows.size === 0) {
-    const fallbackLocalId = currentUser?.localId ?? 1;
-    rows.set(fallbackLocalId, {
-      localId: fallbackLocalId,
-      localName: currentUser?.localName ?? "Local principal",
+  if (productToEdit && rows.size === 0 && currentUser?.localId) {
+    rows.set(currentUser.localId, {
+      localId: currentUser.localId,
+      localName: currentUser.localName ?? "Local actual",
       stock: String(productToEdit.stock),
       lowStockAlertThreshold: String(productToEdit.lowStockAlertThreshold ?? 5),
     });
