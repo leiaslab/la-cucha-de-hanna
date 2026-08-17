@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
+import { ElectronicsCheckoutDialog } from "./ElectronicsCheckoutDialog";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
 import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
@@ -25,6 +26,7 @@ export function CartSidebar({
   onToggleTheme,
 }: CartSidebarProps) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isElectronicsDialogOpen, setIsElectronicsDialogOpen] = useState(false);
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const checkoutInProgressRef = useRef(false);
@@ -133,6 +135,23 @@ export function CartSidebar({
     }
   };
 
+  const openCheckoutFlow = useCallback(() => {
+    if (!cartItems?.length || !hasOpenShift) {
+      return;
+    }
+
+    const isElectronicsOnly = cartItems.every((item) =>
+      ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
+    );
+
+    if (isElectronicsOnly) {
+      setIsElectronicsDialogOpen(true);
+      return;
+    }
+
+    setIsPaymentDialogOpen(true);
+  }, [cartItems, hasOpenShift]);
+
   useEffect(() => {
     const handleKeyboardCheckout = (event: KeyboardEvent) => {
       if (
@@ -154,12 +173,12 @@ export function CartSidebar({
       }
 
       event.preventDefault();
-      setIsPaymentDialogOpen(true);
+      openCheckoutFlow();
     };
 
     window.addEventListener("keydown", handleKeyboardCheckout);
     return () => window.removeEventListener("keydown", handleKeyboardCheckout);
-  }, [cartItems?.length, hasOpenShift, isPaymentDialogOpen]);
+  }, [cartItems, hasOpenShift, isElectronicsDialogOpen, isPaymentDialogOpen, openCheckoutFlow]);
 
   return (
     <>
@@ -343,7 +362,7 @@ export function CartSidebar({
             </div>
             <div className={`grid ${isKioskMode ? "mt-3 gap-1.5" : "mt-4 gap-2"}`}>
               <button
-                onClick={() => setIsPaymentDialogOpen(true)}
+                onClick={openCheckoutFlow}
                 disabled={!cartItems || cartItems.length === 0 || !hasOpenShift}
                 className={`touch-target w-full rounded-2xl bg-blue-500 px-4 font-semibold text-white transition-colors hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-slate-700 ${
                   isKioskMode ? "py-3 text-base" : "py-3 text-sm"
@@ -374,6 +393,27 @@ export function CartSidebar({
           }
         }}
         onSelect={(paymentMethod) => void handleCheckout(paymentMethod)}
+      />
+      <ElectronicsCheckoutDialog
+        isOpen={isElectronicsDialogOpen}
+        cartItems={cartItems ?? []}
+        total={total}
+        clientId={selectedClientId}
+        onClose={() => setIsElectronicsDialogOpen(false)}
+        onCash={() => {
+          setIsElectronicsDialogOpen(false);
+          setIsPaymentDialogOpen(true);
+        }}
+        onReserved={(plan) => {
+          setIsElectronicsDialogOpen(false);
+          setSelectedClientId(null);
+          showToast(
+            plan.status === "paid"
+              ? `Reserva #${plan.id} pagada. Ya esta lista para entregar.`
+              : `Plan de reserva #${plan.id} creado.`,
+            "success",
+          );
+        }}
       />
     </>
   );

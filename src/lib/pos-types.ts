@@ -2,6 +2,7 @@ export type SaleType = "fixed" | "weight";
 export type StockUnit = "unit" | "kg" | "liter";
 export type PaymentMethod = "cash" | "mercado_pago" | "transfer";
 export type ShiftStatus = "open" | "closed";
+export type ReservationStatus = "active" | "paid" | "delivered" | "cancelled";
 export type AppRole = "admin" | "cajero";
 export type SalesResetScope = "day" | "month" | "all";
 
@@ -89,6 +90,10 @@ export interface Shift {
   expectedCash?: number;
   countedCash?: number;
   cashDifference?: number;
+  reservationCollections?: number;
+  reservationCash?: number;
+  reservationMercadoPago?: number;
+  reservationTransfer?: number;
   openedByUserId?: number;
   closedByUserId?: number;
   localId?: number;
@@ -143,6 +148,66 @@ export interface LocalUpdateInput {
   name?: string;
   logoUrl?: string | null;
   thermalPrinterEnabled?: boolean;
+}
+
+export interface ReservationPlanItem {
+  id: number;
+  productId?: number;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+}
+
+export interface ReservationPayment {
+  id: number;
+  planId: number;
+  shiftId?: number;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  notes?: string;
+  createdAt: number;
+}
+
+export interface ReservationPlan {
+  id: number;
+  clientId: number;
+  clientName: string;
+  clientPhone?: string;
+  userId?: number;
+  localId?: number;
+  localName?: string;
+  status: ReservationStatus;
+  totalAmount: number;
+  paidAmount: number;
+  balance: number;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+  paidAt?: number;
+  deliveredAt?: number;
+  items: ReservationPlanItem[];
+  payments: ReservationPayment[];
+}
+
+export interface ReservationCreateInput {
+  cartItems: CartItem[];
+  clientId: number;
+  initialPayment: number;
+  paymentMethod: PaymentMethod;
+  notes?: string;
+}
+
+export interface ReservationPaymentInput {
+  amount: number;
+  paymentMethod: PaymentMethod;
+  notes?: string;
+}
+
+export interface ReservationMutationResult {
+  plan: ReservationPlan;
+  stockUpdates: ProductStockUpdate[];
+  shift: Shift;
 }
 
 export interface ClientRecord {

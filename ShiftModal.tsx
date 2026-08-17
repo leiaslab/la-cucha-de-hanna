@@ -59,8 +59,12 @@ export function ShiftModal({
       base[method] += order.total;
     });
 
+    base.cash += activeShift?.reservationCash ?? 0;
+    base.mercado_pago += activeShift?.reservationMercadoPago ?? 0;
+    base.transfer += activeShift?.reservationTransfer ?? 0;
+
     return base;
-  }, [shiftOrders]);
+  }, [activeShift?.reservationCash, activeShift?.reservationMercadoPago, activeShift?.reservationTransfer, shiftOrders]);
 
   const totalSales = useMemo(
     () => (shiftOrders ?? []).reduce((acc, order) => acc + order.total, 0),
@@ -255,6 +259,14 @@ export function ShiftModal({
                   </p>
                   <p className="text-3xl font-extrabold text-blue-900 dark:text-blue-100">
                     {shiftOrders?.length ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
+                  <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
+                    Cobros de reservas
+                  </p>
+                  <p className="text-3xl font-extrabold text-violet-900 dark:text-violet-100">
+                    ${Math.round(activeShift.reservationCollections ?? 0).toLocaleString("es-AR")}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/50">

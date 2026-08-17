@@ -15,6 +15,10 @@ import type {
   PdfGenerationResult,
   Product,
   ProductInput,
+  ReservationCreateInput,
+  ReservationMutationResult,
+  ReservationPaymentInput,
+  ReservationPlan,
   RemoteSnapshot,
   SalesResetInput,
   SalesResetResult,
@@ -226,6 +230,80 @@ export async function checkoutRemote(payload: CheckoutPayload) {
   });
 
   return result;
+}
+
+async function applyReservationStockUpdates(result: ReservationMutationResult) {
+  if (result.stockUpdates.length === 0) {
+    return;
+  }
+
+  const cachedProducts = await db.products.bulkGet(
+    result.stockUpdates.map((update) => update.productId),
+  );
+  const updatedProducts = cachedProducts.flatMap((product, index) => {
+    if (!product) {
+      return [];
+    }
+
+    const update = result.stockUpdates[index];
+    const localStocks = product.localStocks?.map((localStock) =>
+      update.localId && localStock.localId === update.localId && update.localStock != null
+        ? { ...localStock, stock: update.localStock }
+        : localStock,
+    );
+
+    return [{
+      ...product,
+      stock: update.localStock ?? update.globalStock,
+      globalStock: update.globalStock,
+      localStocks,
+      lastUpdated: update.lastUpdated,
+    }];
+  });
+
+  if (updatedProducts.length > 0) {
+    await db.products.bulkPut(updatedProducts);
+  }
+}
+
+export async function listReservationPlansRemote() {
+  return apiFetch<ReservationPlan[]>("/api/reservations", { cache: "no-store" });
+}
+
+export async function createReservationPlanRemote(payload: ReservationCreateInput) {
+  const result = await apiFetch<ReservationMutationResult>("/api/reservations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  await db.transaction("rw", [db.products, db.cart, db.shifts], async () => {
+    await applyReservationStockUpdates(result);
+    await db.shifts.put(result.shift);
+    await db.cart.clear();
+  });
+
+  return result;
+}
+
+export async function addReservationPaymentRemote(
+  planId: number,
+  payload: ReservationPaymentInput,
+) {
+  const result = await apiFetch<{ plan: ReservationPlan; shift: Shift }>(
+    `/api/reservations/${planId}/payments`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  await db.shifts.put(result.shift);
+  return result;
+}
+
+export async function deliverReservationPlanRemote(planId: number) {
+  return apiFetch<ReservationPlan>(`/api/reservations/${planId}/deliver`, {
+    method: "POST",
+  });
 }
 
 export async function openShiftRemote(payload: ShiftOpenInput) {

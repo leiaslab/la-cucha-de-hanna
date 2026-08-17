@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
+import { ElectronicsCheckoutDialog } from "./ElectronicsCheckoutDialog";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
@@ -21,6 +22,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isElectronicsDialogOpen, setIsElectronicsDialogOpen] = useState(false);
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const checkoutInProgressRef = useRef(false);
   const activeShift = useLiveQuery(async () => {
@@ -153,6 +155,23 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
     if (confirm("Estas seguro de que deseas vaciar el carrito?")) {
       await db.cart.clear();
     }
+  };
+
+  const openCheckoutFlow = () => {
+    if (!cartItems?.length || !hasOpenShift) {
+      return;
+    }
+
+    const isElectronicsOnly = cartItems.every((item) =>
+      ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
+    );
+
+    if (isElectronicsOnly) {
+      setIsElectronicsDialogOpen(true);
+      return;
+    }
+
+    setIsPaymentDialogOpen(true);
   };
 
   return (
@@ -352,7 +371,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
                 Vaciar
               </button>
               <button
-                onClick={() => setIsPaymentDialogOpen(true)}
+                onClick={openCheckoutFlow}
                 disabled={!hasOpenShift}
                 autoFocus
                 className="flex-[3] rounded-xl bg-green-600 py-3 font-bold text-white shadow-md transition-all active:scale-95 hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -373,6 +392,29 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
           }
         }}
         onSelect={(paymentMethod) => void handleCheckout(paymentMethod)}
+      />
+      <ElectronicsCheckoutDialog
+        isOpen={isElectronicsDialogOpen}
+        cartItems={cartItems ?? []}
+        total={total}
+        clientId={selectedClientId}
+        notes={notes}
+        onClose={() => setIsElectronicsDialogOpen(false)}
+        onCash={() => {
+          setIsElectronicsDialogOpen(false);
+          setIsPaymentDialogOpen(true);
+        }}
+        onReserved={(plan) => {
+          setNotes("");
+          setSelectedClientId(null);
+          setIsElectronicsDialogOpen(false);
+          showToast(
+            plan.status === "paid"
+              ? `Reserva #${plan.id} pagada. Ya esta lista para entregar.`
+              : `Plan de reserva #${plan.id} creado.`,
+            "success",
+          );
+        }}
       />
     </div>
   );

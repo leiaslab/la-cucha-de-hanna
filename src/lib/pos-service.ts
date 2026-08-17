@@ -17,6 +17,11 @@ import type {
   ProductInput,
   ProductLocalStock,
   ProductStockUpdate,
+  ReservationCreateInput,
+  ReservationMutationResult,
+  ReservationPayment,
+  ReservationPaymentInput,
+  ReservationPlan,
   RemoteSnapshot,
   SalesResetInput,
   SalesResetResult,
@@ -48,6 +53,8 @@ type ProductRow = {
 
 const PRODUCT_BOOTSTRAP_COLUMNS =
   "id,code,name,price,cost,stock,low_stock_alert_threshold,category,subcategory,slug,sale_type,stock_unit,description,last_updated";
+const RESERVATION_SELECT =
+  "*,clientes(id,full_name,phone),locales(id,name),reservation_plan_items(*),reservation_payments(*)";
 
 function productImagePath(productId: number, lastUpdated?: string) {
   const version = lastUpdated ? `?v=${encodeURIComponent(lastUpdated)}` : "";
@@ -110,6 +117,10 @@ type ShiftRow = {
   expected_cash: number | null;
   counted_cash: number | null;
   cash_difference: number | null;
+  reservation_collections: number | null;
+  reservation_cash: number | null;
+  reservation_mercado_pago: number | null;
+  reservation_transfer: number | null;
 };
 
 type FastCheckoutStockRow = {
@@ -164,6 +175,51 @@ type LocalRow = {
   thermal_printer_enabled: boolean;
   created_at: string;
   updated_at: string;
+};
+
+type ReservationItemRow = {
+  id: number;
+  plan_id: number;
+  product_id: number | null;
+  name: string;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+};
+
+type ReservationPaymentRow = {
+  id: number;
+  plan_id: number;
+  shift_id: number | null;
+  amount: number;
+  payment_method: PaymentMethod;
+  notes: string | null;
+  created_at: string;
+};
+
+type ReservationPlanRow = {
+  id: number;
+  client_id: number;
+  user_id: number | null;
+  local_id: number | null;
+  status: ReservationPlan["status"];
+  total_amount: number;
+  paid_amount: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  paid_at: string | null;
+  delivered_at: string | null;
+  clientes?: Pick<ClientRow, "id" | "full_name" | "phone"> | null;
+  locales?: Pick<LocalRow, "id" | "name"> | null;
+  reservation_plan_items?: ReservationItemRow[] | null;
+  reservation_payments?: ReservationPaymentRow[] | null;
+};
+
+type ReservationRpcResult = {
+  plan_id: number;
+  shift_id: number;
+  stock_updates?: FastCheckoutStockRow[];
 };
 
 const LOCAL_LOGO_DATA_URL_PATTERN = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i;
@@ -309,6 +365,10 @@ function mapShiftRow(row: ShiftRow, localNamesById?: Map<number, LocalRow>): Shi
     expectedCash: row.expected_cash ?? undefined,
     countedCash: row.counted_cash ?? undefined,
     cashDifference: row.cash_difference ?? undefined,
+    reservationCollections: row.reservation_collections ?? 0,
+    reservationCash: row.reservation_cash ?? 0,
+    reservationMercadoPago: row.reservation_mercado_pago ?? 0,
+    reservationTransfer: row.reservation_transfer ?? 0,
   };
 }
 
@@ -1176,6 +1236,190 @@ export async function createCheckout(input: CheckoutPayload, sessionUser: Sessio
     updatedProducts: [],
     shift,
     pdf,
+  };
+}
+
+async function getReservationPlanById(planId: number) {
+  const supabase = createServiceRoleSupabaseClient();
+  const row = await expectSingle(
+    supabase
+      .from("reservation_plans")
+      .select(RESERVATION_SELECT)
+      .eq("id", planId)
+      .single(),
+  );
+
+  return mapReservationPlanRow(row as unknown as ReservationPlanRow);
+}
+
+export async function listReservationPlans(sessionUser: SessionUser) {
+  const supabase = createServiceRoleSupabaseClient();
+  const query = supabase
+    .from("reservation_plans")
+    .select(RESERVATION_SELECT)
+    .order("created_at", { ascending: false });
+
+  if (sessionUser.role !== "admin" && sessionUser.localId) {
+    query.eq("local_id", sessionUser.localId);
+  }
+
+  const rows = await expectMany(query);
+  return (rows as unknown as ReservationPlanRow[]).map(mapReservationPlanRow);
+}
+
+export async function createReservationPlan(
+  input: ReservationCreateInput,
+  sessionUser: SessionUser,
+): Promise<ReservationMutationResult> {
+  if (!Number.isInteger(input.clientId) || input.clientId <= 0) {
+    throw new Error("Selecciona un cliente para crear el plan de reserva.");
+  }
+  if (!Array.isArray(input.cartItems) || input.cartItems.length === 0) {
+    throw new Error("Agrega al menos un producto de electronica.");
+  }
+  if (!Number.isFinite(input.initialPayment) || input.initialPayment < 0) {
+    throw new Error("La entrega inicial no es valida.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.rpc("create_reservation_plan", {
+    p_payload: {
+      user_id: sessionUser.id ?? null,
+      client_id: input.clientId,
+      initial_payment: input.initialPayment,
+      payment_method: input.paymentMethod,
+      notes: input.notes?.trim() || null,
+      items: input.cartItems.map((item) => ({
+        product_id: item.productId,
+        quantity: item.quantity,
+      })),
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const result = data as ReservationRpcResult | null;
+  if (!result?.plan_id || !result.shift_id) {
+    throw new Error("Supabase no devolvio un plan de reserva valido.");
+  }
+
+  const [plan, shift] = await Promise.all([
+    getReservationPlanById(result.plan_id),
+    getShiftById(result.shift_id),
+  ]);
+  const stockUpdates = (result.stock_updates ?? []).map((row) => ({
+    productId: row.product_id,
+    globalStock: row.global_stock,
+    localId: row.local_id,
+    localStock: row.local_stock,
+    lastUpdated: toMillis(row.last_updated) ?? Date.now(),
+  }));
+
+  return { plan, shift, stockUpdates };
+}
+
+export async function addReservationPayment(
+  planId: number,
+  input: ReservationPaymentInput,
+  sessionUser: SessionUser,
+): Promise<{ plan: ReservationPlan; shift: Shift }> {
+  if (!Number.isInteger(planId) || planId <= 0) {
+    throw new Error("El plan de reserva no es valido.");
+  }
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new Error("El pago debe ser mayor a cero.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.rpc("add_reservation_payment", {
+    p_plan_id: planId,
+    p_amount: input.amount,
+    p_payment_method: input.paymentMethod,
+    p_user_id: sessionUser.id ?? null,
+    p_notes: input.notes?.trim() || null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const result = data as ReservationRpcResult | null;
+  if (!result?.plan_id || !result.shift_id) {
+    throw new Error("Supabase no devolvio el pago registrado.");
+  }
+
+  const [plan, shift] = await Promise.all([
+    getReservationPlanById(result.plan_id),
+    getShiftById(result.shift_id),
+  ]);
+  return { plan, shift };
+}
+
+export async function deliverReservationPlan(planId: number, sessionUser: SessionUser) {
+  if (!Number.isInteger(planId) || planId <= 0) {
+    throw new Error("El plan de reserva no es valido.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.rpc("deliver_reservation_plan", {
+    p_plan_id: planId,
+    p_user_id: sessionUser.id ?? null,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const deliveredPlanId = Number(data ?? planId);
+  return getReservationPlanById(deliveredPlanId);
+}
+
+function mapReservationPaymentRow(row: ReservationPaymentRow): ReservationPayment {
+  return {
+    id: row.id,
+    planId: row.plan_id,
+    shiftId: row.shift_id ?? undefined,
+    amount: row.amount,
+    paymentMethod: row.payment_method,
+    notes: row.notes ?? undefined,
+    createdAt: toMillis(row.created_at) ?? Date.now(),
+  };
+}
+
+function mapReservationPlanRow(row: ReservationPlanRow): ReservationPlan {
+  const paidAmount = Number(row.paid_amount ?? 0);
+  const totalAmount = Number(row.total_amount ?? 0);
+
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    clientName: row.clientes?.full_name ?? `Cliente #${row.client_id}`,
+    clientPhone: row.clientes?.phone ?? undefined,
+    userId: row.user_id ?? undefined,
+    localId: row.local_id ?? undefined,
+    localName: row.locales?.name ?? undefined,
+    status: row.status,
+    totalAmount,
+    paidAmount,
+    balance: Math.max(0, totalAmount - paidAmount),
+    notes: row.notes ?? undefined,
+    createdAt: toMillis(row.created_at) ?? Date.now(),
+    updatedAt: toMillis(row.updated_at) ?? Date.now(),
+    paidAt: toMillis(row.paid_at),
+    deliveredAt: toMillis(row.delivered_at),
+    items: (row.reservation_plan_items ?? []).map((item) => ({
+      id: item.id,
+      productId: item.product_id ?? undefined,
+      name: item.name,
+      unitPrice: item.unit_price,
+      quantity: item.quantity,
+      lineTotal: item.line_total,
+    })),
+    payments: (row.reservation_payments ?? [])
+      .map(mapReservationPaymentRow)
+      .sort((a, b) => b.createdAt - a.createdAt),
   };
 }
 
