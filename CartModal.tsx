@@ -7,7 +7,7 @@ import { ClientSelector } from "./ClientSelector";
 import { ElectronicsCheckoutDialog } from "./ElectronicsCheckoutDialog";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
-import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
+import { formatQuantity, formatSaleItemQuantity, getLineTotal, getQuantityStep, getStockUnitLabel, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
 
 interface CartModalProps {
@@ -162,8 +162,11 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
       return;
     }
 
-    const isElectronicsOnly = cartItems.every((item) =>
-      ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
+    const isElectronicsOnly = cartItems.every(
+      (item) =>
+        item.saleType === "fixed" &&
+        item.stockUnit === "unit" &&
+        ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
     );
 
     if (isElectronicsOnly) {
@@ -219,14 +222,28 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
                         <h4 className="font-bold">{item.name}</h4>
                         <p className="text-sm text-gray-500">
                           ${item.price.toLocaleString()}{" "}
-                          {item.stockUnit === "kg"
+                          {item.saleType === "variable"
+                            ? `· ${getStockUnitLabel(item.stockUnit)}`
+                            : item.stockUnit === "kg"
                             ? "/ kg"
                             : item.stockUnit === "liter"
                               ? "/ l"
                               : ""}
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      {item.saleType === "variable" ? (
+                        <div className="flex items-center gap-3">
+                          <span className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
+                            {getStockUnitLabel(item.stockUnit)} · importe libre
+                          </span>
+                          <button
+                            onClick={() => item.id && db.cart.delete(item.id)}
+                            className="text-sm font-semibold text-red-500 hover:text-red-600"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      ) : <div className="flex items-center gap-3">
                         <button
                           onClick={() =>
                             item.id &&
@@ -255,7 +272,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
                         >
                           +
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   ))
                 )}
@@ -333,7 +350,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
                     <ul className="space-y-1 text-sm">
                       {order.items.map((item, idx) => (
                         <li key={idx} className="text-gray-700">
-                          * {formatQuantity(item.quantity, item.stockUnit)} {item.name}
+                          * {formatSaleItemQuantity(item)} {item.name}
                         </li>
                       ))}
                     </ul>

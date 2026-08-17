@@ -10,7 +10,7 @@ import {
 } from "./src/lib/api-client";
 import { optimizeProductImage } from "./imageUtils";
 
-type SaleMode = "unit" | "kg" | "liter";
+type SaleMode = "unit" | "kg" | "liter" | "variable";
 
 type LocalStockFormState = {
   localId: number;
@@ -134,7 +134,14 @@ export function ProductFormModal({
   const [localStocks, setLocalStocks] = useState<LocalStockFormState[]>(() =>
     buildLocalStockFields(productToEdit, availableLocales, currentUser, preferredLocalId),
   );
-  const saleMode: SaleMode = saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
+  const saleMode: SaleMode =
+    saleType === "variable"
+      ? "variable"
+      : saleType === "fixed"
+        ? "unit"
+        : stockUnit === "liter"
+          ? "liter"
+          : "kg";
   const existingCategories = useLiveQuery(async () => {
     const products = await db.products.toArray();
     return Array.from(new Set(products.map((product) => product.category.trim()).filter(Boolean))).sort(
@@ -205,12 +212,13 @@ export function ProductFormModal({
     const trimmedSubcategory = subcategory.trim();
     const trimmedDescription = description.trim();
     const trimmedImageUrl = imageUrl.trim();
-    const parsedPrice = Number(price);
-    const parsedCost = Number(cost);
+    const isVariableProduct = saleType === "variable";
+    const parsedPrice = isVariableProduct ? 0 : Number(price);
+    const parsedCost = isVariableProduct ? 0 : Number(cost);
     const normalizedStockUnit: StockUnit =
-      saleType === "fixed" ? "unit" : stockUnit === "liter" ? "liter" : "kg";
+      saleType === "weight" ? (stockUnit === "liter" ? "liter" : "kg") : "unit";
 
-    if (!trimmedName || !trimmedCategory || price === "" || cost === "") {
+    if (!trimmedName || !trimmedCategory || (!isVariableProduct && (price === "" || cost === ""))) {
       setError("Completa nombre, precio, costo y categoria.");
       return;
     }
@@ -233,8 +241,8 @@ export function ProductFormModal({
     const normalizedLocalStocks = localStocks.map((localStock) => ({
       localId: localStock.localId,
       localName: localStock.localName,
-      stock: localStock.stock.trim() === "" ? 0 : parseDecimalInput(localStock.stock),
-      lowStockAlertThreshold: parseDecimalInput(localStock.lowStockAlertThreshold),
+      stock: isVariableProduct ? 0 : localStock.stock.trim() === "" ? 0 : parseDecimalInput(localStock.stock),
+      lowStockAlertThreshold: isVariableProduct ? 0 : parseDecimalInput(localStock.lowStockAlertThreshold),
     }));
 
     const invalidLocalStock = normalizedLocalStocks.find(
@@ -270,7 +278,9 @@ export function ProductFormModal({
         cost: parsedCost,
         stock: preferredLocalStock?.stock ?? 0,
         preferredLocalId: preferredLocalStock?.localId ?? preferredLocalId ?? undefined,
-        lowStockAlertThreshold: preferredLocalStock?.lowStockAlertThreshold ?? 5,
+        lowStockAlertThreshold: isVariableProduct
+          ? 0
+          : preferredLocalStock?.lowStockAlertThreshold ?? 5,
         category: trimmedCategory,
         subcategory: trimmedSubcategory || undefined,
         saleType,
@@ -410,7 +420,7 @@ export function ProductFormModal({
                 />
               </div>
 
-              <div>
+              {saleType !== "variable" && <div>
                 <label htmlFor="price" className="block text-sm font-medium text-slate-700">
                   {saleType === "weight"
                     ? `Precio por ${stockUnit === "liter" ? "litro" : "kilo"}`
@@ -428,9 +438,15 @@ export function ProductFormModal({
                   step="0.01"
                   min="0"
                 />
-              </div>
+              </div>}
 
-              <div>
+              {saleType === "variable" && (
+                <div className="sm:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  El importe se escribe al momento de vender. Este producto no controla ni descuenta stock.
+                </div>
+              )}
+
+              {saleType !== "variable" && <div>
                 <label htmlFor="cost" className="block text-sm font-medium text-slate-700">
                   {saleType === "weight"
                     ? `Costo por ${stockUnit === "liter" ? "litro" : "kilo"}`
@@ -448,7 +464,7 @@ export function ProductFormModal({
                   step="0.01"
                   min="0"
                 />
-              </div>
+              </div>}
 
               <div className="sm:col-span-2">
                 <label htmlFor="saleType" className="block text-sm font-medium text-slate-700">
@@ -465,6 +481,12 @@ export function ProductFormModal({
                       return;
                     }
 
+                    if (nextMode === "variable") {
+                      setSaleType("variable");
+                      setStockUnit("unit");
+                      return;
+                    }
+
                     setSaleType("weight");
                     setStockUnit(nextMode as StockUnit);
                   }}
@@ -473,15 +495,18 @@ export function ProductFormModal({
                   <option value="unit">Por unidad</option>
                   <option value="kg">Por kilo</option>
                   <option value="liter">Por litro</option>
+                  <option value="variable">Importe libre (sin stock)</option>
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  {saleMode === "unit"
+                  {saleMode === "variable"
+                    ? "Al vender, se ingresa el importe y se elige kilo, unidad o litro. No lleva stock."
+                    : saleMode === "unit"
                     ? "Ideal para accesorios o productos con precio fijo por unidad."
                     : `El producto se vende por ${saleMode === "liter" ? "litro" : "kilo"} y el stock tambien se descuenta en esa unidad.`}
                 </p>
               </div>
 
-              <div className="sm:col-span-2">
+              {saleType !== "variable" && <div className="sm:col-span-2">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -582,7 +607,7 @@ export function ProductFormModal({
                     )}
                   </div>
                 </div>
-              </div>
+              </div>}
 
               <div>
                 <label htmlFor="existingCategory" className="block text-sm font-medium text-slate-700">

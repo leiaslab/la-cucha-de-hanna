@@ -23,7 +23,7 @@ create table if not exists public.productos (
   category text not null,
   subcategory text,
   slug text not null,
-  sale_type text not null check (sale_type in ('fixed', 'weight')),
+  sale_type text not null check (sale_type in ('fixed', 'weight', 'variable')),
   stock_unit text not null check (stock_unit in ('unit', 'kg', 'liter')),
   description text,
   image_url text,
@@ -175,7 +175,7 @@ create table if not exists public.detalle_ventas (
   price double precision not null,
   quantity double precision not null,
   category text not null,
-  sale_type text not null check (sale_type in ('fixed', 'weight')),
+  sale_type text not null check (sale_type in ('fixed', 'weight', 'variable')),
   stock_unit text not null check (stock_unit in ('unit', 'kg', 'liter')),
   step double precision not null default 1
 );

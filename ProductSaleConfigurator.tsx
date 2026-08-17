@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { db, type Product } from "./db";
+import { db, type Product, type StockUnit } from "./db";
 import {
   calculateAmountFromQuantity,
   calculateQuantityFromAmount,
   canSellQuantity,
   formatQuantity,
   getQuantityStep,
+  getStockUnitLabel,
   roundQuantity,
 } from "./saleUtils";
 import { showToast } from "./Toast";
@@ -30,9 +31,10 @@ export function ProductSaleConfigurator({
   const [quantityInput, setQuantityInput] = useState("");
   const [amountInput, setAmountInput] = useState("");
   const [unitQuantityInput, setUnitQuantityInput] = useState("1");
+  const [variableUnit, setVariableUnit] = useState<StockUnit>("unit");
   const [lastEditedWeightField, setLastEditedWeightField] = useState<WeightInputMode>("quantity");
 
-  const quantityStep = getQuantityStep(product.stockUnit);
+  const quantityStep = getQuantityStep(product.saleType === "variable" ? variableUnit : product.stockUnit);
 
   const weightSale = useMemo(() => {
     if (lastEditedWeightField === "amount") {
@@ -53,9 +55,12 @@ export function ProductSaleConfigurator({
   }, [amountInput, lastEditedWeightField, product.price, quantityInput]);
 
   const fixedQuantity = Math.max(0, Math.floor(Number(unitQuantityInput || 0)));
-  const selectedQuantity = product.saleType === "weight" ? weightSale.quantity : fixedQuantity;
+  const selectedQuantity =
+    product.saleType === "variable" ? 1 : product.saleType === "weight" ? weightSale.quantity : fixedQuantity;
   const selectedTotal =
-    product.saleType === "weight"
+    product.saleType === "variable"
+      ? roundQuantity(Number(amountInput || 0))
+      : product.saleType === "weight"
       ? weightSale.total
       : roundQuantity(product.price * fixedQuantity);
   const displayedQuantityInput =
@@ -76,13 +81,30 @@ export function ProductSaleConfigurator({
       : "";
   const remainingStock = Math.max(0, roundQuantity(product.stock - selectedQuantity));
   const canAddToCart =
-    selectedQuantity > 0 &&
-    selectedTotal > 0 &&
-    canSellQuantity(product.stock, selectedQuantity, product.stockUnit);
+    selectedQuantity > 0 && selectedTotal > 0 &&
+    (product.saleType === "variable" || canSellQuantity(product.stock, selectedQuantity, product.stockUnit));
 
   const handleAddToCart = async () => {
     if (!product.id || !canAddToCart) {
       showToast("La cantidad elegida no es valida para el stock disponible.", "error");
+      return;
+    }
+
+    if (product.saleType === "variable") {
+      await db.cart.add({
+        productId: product.id,
+        name: product.name,
+        price: selectedTotal,
+        quantity: 1,
+        category: product.category,
+        saleType: "variable",
+        stockUnit: variableUnit,
+        step: 1,
+      });
+      setAmountInput("");
+      setVariableUnit("unit");
+      showToast("Producto agregado al carrito.", "success");
+      onAdded?.();
       return;
     }
 
@@ -139,14 +161,51 @@ export function ProductSaleConfigurator({
     : "text-4xl font-black tracking-tight text-slate-900";
 
   const quantityPreview =
-    product.saleType === "weight"
+    product.saleType === "variable"
+      ? getStockUnitLabel(variableUnit)
+      : product.saleType === "weight"
       ? formatQuantity(selectedQuantity, product.stockUnit)
       : `${Math.round(selectedQuantity || 0).toLocaleString("es-AR")} un`;
   const quantityLabel = product.stockUnit === "liter" ? "Litros" : "Kilos";
 
   return (
     <form className={wrapperClassName} onClick={(event) => event.stopPropagation()} onSubmit={handleSubmit}>
-      {product.saleType === "weight" ? (
+      {product.saleType === "variable" ? (
+        <div className="space-y-2.5">
+          <div className="space-y-1.5">
+            <label htmlFor={`variable-amount-${product.id}`} className={labelClassName}>
+              Importe
+            </label>
+            <input
+              id={`variable-amount-${product.id}`}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              value={amountInput}
+              onChange={(event) => setAmountInput(event.target.value)}
+              className={inputClassName}
+              placeholder="Ej: 5000"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor={`variable-unit-${product.id}`} className={labelClassName}>
+              Tipo
+            </label>
+            <select
+              id={`variable-unit-${product.id}`}
+              value={variableUnit}
+              onChange={(event) => setVariableUnit(event.target.value as StockUnit)}
+              className={inputClassName}
+            >
+              <option value="kg">Kilo</option>
+              <option value="unit">Unidad</option>
+              <option value="liter">Litro</option>
+            </select>
+          </div>
+        </div>
+      ) : product.saleType === "weight" ? (
         <div className="space-y-2.5">
           <div className="space-y-1.5">
             <label htmlFor={`weight-quantity-${product.id}`} className={labelClassName}>
@@ -223,12 +282,14 @@ export function ProductSaleConfigurator({
             compact ? "mt-1.5" : "mt-2"
           }`}
         >
-          <span>Cantidad: {quantityPreview}</span>
-          <span>Stock: {formatQuantity(remainingStock, product.stockUnit)}</span>
+          <span>{product.saleType === "variable" ? "Tipo" : "Cantidad"}: {quantityPreview}</span>
+          {product.saleType !== "variable" && (
+            <span>Stock: {formatQuantity(remainingStock, product.stockUnit)}</span>
+          )}
         </div>
       </div>
 
-      {!canAddToCart && selectedQuantity > 0 && (
+      {product.saleType !== "variable" && !canAddToCart && selectedQuantity > 0 && (
         <p className="text-xs font-medium text-red-600">
           La cantidad elegida supera el stock disponible.
         </p>

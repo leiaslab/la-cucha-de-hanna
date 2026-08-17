@@ -62,7 +62,9 @@ export function ProductSalePage({ productId }: ProductSalePageProps) {
                   {product.category}{product.subcategory ? ` / ${product.subcategory}` : ""}
                 </p>
                 <p className="mt-1">{formatPriceLabel(product)}</p>
-                <p className="mt-1">Stock disponible: {getRemainingStockLabel(product)}</p>
+                {product.saleType !== "variable" && (
+                  <p className="mt-1">Stock disponible: {getRemainingStockLabel(product)}</p>
+                )}
               </div>
             </div>
 

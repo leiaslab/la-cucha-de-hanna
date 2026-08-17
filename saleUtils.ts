@@ -20,12 +20,20 @@ export function formatQuantity(value: number, stockUnit: StockUnit) {
 }
 
 export function formatPriceLabel(product: Pick<Product, "price" | "saleType" | "stockUnit">) {
+  if (product.saleType === "variable") {
+    return "Importe libre";
+  }
+
   return product.saleType === "weight"
     ? `$${product.price.toLocaleString("es-AR")} / ${product.stockUnit === "liter" ? "l" : "kg"}`
     : `$${product.price.toLocaleString("es-AR")}`;
 }
 
 export function getSaleTypeLabel(saleType: SaleType, stockUnit: StockUnit) {
+  if (saleType === "variable") {
+    return "Importe libre (sin stock)";
+  }
+
   if (saleType !== "weight") {
     return "Precio fijo";
   }
@@ -69,6 +77,26 @@ export function canSellQuantity(
   }
 
   return quantity <= Math.floor(stock);
+}
+
+export function getStockUnitLabel(stockUnit: StockUnit) {
+  if (stockUnit === "kg") {
+    return "Kilo";
+  }
+
+  if (stockUnit === "liter") {
+    return "Litro";
+  }
+
+  return "Unidad";
+}
+
+export function formatSaleItemQuantity(
+  item: Pick<CartItem, "quantity" | "stockUnit" | "saleType">,
+) {
+  return item.saleType === "variable"
+    ? getStockUnitLabel(item.stockUnit)
+    : formatQuantity(item.quantity, item.stockUnit);
 }
 
 export function getRemainingStockLabel(product: Pick<Product, "stock" | "stockUnit">) {

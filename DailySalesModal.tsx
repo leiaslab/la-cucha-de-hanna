@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type PaymentMethod, type StockUnit } from "./db";
 import { getPaymentMethodLabel } from "./PaymentMethodDialog";
-import { formatQuantity, getLineTotal } from "./saleUtils";
+import { formatQuantity, formatSaleItemQuantity, getLineTotal } from "./saleUtils";
 import { showToast } from "./Toast";
 import { resetSalesRemote } from "./src/lib/api-client";
 import type { SalesResetScope } from "./src/lib/pos-types";
@@ -956,7 +956,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
 
                         <div className="mt-2 text-sm text-slate-700 dark:text-slate-200">
                           {order.items
-                            .map((item) => `${formatQuantity(item.quantity, item.stockUnit)} ${item.name}`)
+                            .map((item) => `${formatSaleItemQuantity(item)} ${item.name}`)
                             .join(", ")}
                         </div>
 

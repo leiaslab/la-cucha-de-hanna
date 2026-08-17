@@ -134,15 +134,15 @@ export function ProductSaleOverlay({
                     {formatPriceLabel(product)}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
+                {product.saleType !== "variable" && <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     {canManageProducts ? "Stock del local" : "Stock"}
                   </p>
                   <p className="mt-1.5 text-base font-bold text-slate-900">
                     {formatQuantity(product.stock, product.stockUnit)}
                   </p>
-                </div>
-                {canManageProducts && (
+                </div>}
+                {canManageProducts && product.saleType !== "variable" && (
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Stock global
@@ -154,7 +154,7 @@ export function ProductSaleOverlay({
                 )}
               </div>
 
-              {canManageProducts && visibleLocalStocks.length > 0 && (
+              {canManageProducts && product.saleType !== "variable" && visibleLocalStocks.length > 0 && (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Stock por local

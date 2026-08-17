@@ -1,4 +1,4 @@
-export type SaleType = "fixed" | "weight";
+export type SaleType = "fixed" | "weight" | "variable";
 export type StockUnit = "unit" | "kg" | "liter";
 export type PaymentMethod = "cash" | "mercado_pago" | "transfer";
 export type ShiftStatus = "open" | "closed";

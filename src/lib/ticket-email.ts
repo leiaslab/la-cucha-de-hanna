@@ -68,9 +68,11 @@ function buildEmailHtml(order: Order, pdf: PdfGenerationResult | null | undefine
   const paymentMethod = getPaymentMethodLabel(order.paymentMethod);
   const itemsHtml = order.items
     .map((item) => {
-      const quantity = Number.isInteger(item.quantity)
-        ? item.quantity.toString()
-        : item.quantity.toLocaleString("es-AR");
+      const quantity = item.saleType === "variable"
+        ? item.stockUnit === "kg" ? "Kilo" : item.stockUnit === "liter" ? "Litro" : "Unidad"
+        : Number.isInteger(item.quantity)
+          ? item.quantity.toString()
+          : item.quantity.toLocaleString("es-AR");
 
       return `
         <tr>

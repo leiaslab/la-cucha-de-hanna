@@ -7,7 +7,7 @@ import { ClientSelector } from "./ClientSelector";
 import { ElectronicsCheckoutDialog } from "./ElectronicsCheckoutDialog";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
-import { formatQuantity, getLineTotal, getQuantityStep, roundQuantity } from "./saleUtils";
+import { formatQuantity, getLineTotal, getQuantityStep, getStockUnitLabel, roundQuantity } from "./saleUtils";
 import { showToast } from "./Toast";
 
 interface CartSidebarProps {
@@ -140,8 +140,11 @@ export function CartSidebar({
       return;
     }
 
-    const isElectronicsOnly = cartItems.every((item) =>
-      ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
+    const isElectronicsOnly = cartItems.every(
+      (item) =>
+        item.saleType === "fixed" &&
+        item.stockUnit === "unit" &&
+        ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
     );
 
     if (isElectronicsOnly) {
@@ -276,13 +279,19 @@ export function CartSidebar({
                       <div className="mt-1 flex items-center justify-between gap-2">
                         <p className={`text-slate-500 ${isKioskMode ? "text-xs" : "text-[11px]"}`}>
                           ${item.price.toLocaleString("es-AR")}
-                          {item.stockUnit === "kg"
+                          {item.saleType === "variable"
+                            ? ` · ${getStockUnitLabel(item.stockUnit)}`
+                            : item.stockUnit === "kg"
                             ? " / kg"
                             : item.stockUnit === "liter"
                               ? " / l"
                               : " / unidad"}
                         </p>
-                        <div className="flex items-center gap-1.5">
+                        {item.saleType === "variable" ? (
+                          <span className={`rounded-full bg-blue-50 px-3 font-semibold text-blue-700 ${isKioskMode ? "py-2 text-xs" : "py-1.5 text-[11px]"}`}>
+                            {getStockUnitLabel(item.stockUnit)} · importe libre
+                          </span>
+                        ) : <div className="flex items-center gap-1.5">
                           <button
                             onClick={() =>
                               item.id &&
@@ -313,7 +322,7 @@ export function CartSidebar({
                           >
                             +
                           </button>
-                        </div>
+                        </div>}
                       </div>
                     </div>
                   </div>

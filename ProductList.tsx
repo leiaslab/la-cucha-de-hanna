@@ -108,6 +108,10 @@ export function ProductList({
     }
 
     const lowStockProducts = allProductsForCategories.filter((product) => {
+      if (product.saleType === "variable") {
+        return false;
+      }
+
       const visibleStock = canManageProducts ? product.globalStock ?? product.stock : product.stock;
       const threshold = Math.max(
         0,

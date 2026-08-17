@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type Order } from "./db";
-import { formatQuantity, getLineTotal } from "./saleUtils";
+import { formatSaleItemQuantity, getLineTotal } from "./saleUtils";
 
 interface ReceiptPrintProps {
   order: Order | null;
@@ -94,7 +94,7 @@ export function ReceiptPrint({ order, onReadyToPrint }: ReceiptPrintProps) {
           <tbody className="text-xs">
             {order.items.map((item, idx) => (
               <tr key={idx} className="border-b border-gray-200">
-                <td className="py-2">{formatQuantity(item.quantity, item.stockUnit)}</td>
+                <td className="py-2">{formatSaleItemQuantity(item)}</td>
                 <td className="py-2 font-medium">{item.name}</td>
                 <td className="py-2 text-right">${item.price.toLocaleString("es-AR")}</td>
                 <td className="py-2 text-right">${getLineTotal(item).toLocaleString("es-AR")}</td>

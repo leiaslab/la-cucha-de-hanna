@@ -162,7 +162,10 @@ export async function renderSalePdf(order: Order) {
       font: fontBold,
       color: rgb(0.15, 0.23, 0.34),
     });
-    page.drawText(`${item.quantity.toLocaleString("es-AR")} x ${formatCurrency(item.price)}`, {
+    const quantityLabel = item.saleType === "variable"
+      ? item.stockUnit === "kg" ? "Kilo" : item.stockUnit === "liter" ? "Litro" : "Unidad"
+      : item.quantity.toLocaleString("es-AR");
+    page.drawText(`${quantityLabel} x ${formatCurrency(item.price)}`, {
       x: margin,
       y: cursorY - 14,
       size: 9,

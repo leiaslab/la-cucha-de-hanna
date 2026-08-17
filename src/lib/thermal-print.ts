@@ -213,9 +213,11 @@ function buildReceiptCommands(order: Order, settings: ThermalPrinterSettings) {
   commands.push(`${divider}\n`);
 
   order.items.forEach((item) => {
-    const quantityLabel = `${formatQuantity(item.quantity)} ${
-      item.stockUnit === "kg" ? "kg" : item.stockUnit === "liter" ? "l" : "un"
-    }`;
+    const quantityLabel = item.saleType === "variable"
+      ? item.stockUnit === "kg" ? "Kilo" : item.stockUnit === "liter" ? "Litro" : "Unidad"
+      : `${formatQuantity(item.quantity)} ${
+          item.stockUnit === "kg" ? "kg" : item.stockUnit === "liter" ? "l" : "un"
+        }`;
     const itemTitle = `${quantityLabel} x ${item.name}`;
 
     wrapLine(itemTitle, lineWidth).forEach((line) => {

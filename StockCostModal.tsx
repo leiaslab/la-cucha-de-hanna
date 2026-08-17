@@ -16,7 +16,7 @@ export function StockCostModal({ isOpen, onClose }: StockCostModalProps) {
 
   const sortedProducts = useMemo(
     () =>
-      [...(products ?? [])].sort((a, b) => {
+      [...(products ?? [])].filter((product) => product.saleType !== "variable").sort((a, b) => {
         const categoryCompare = a.category.localeCompare(b.category);
         if (categoryCompare !== 0) {
           return categoryCompare;
