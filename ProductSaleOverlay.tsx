@@ -7,6 +7,7 @@ import { formatPriceLabel, formatQuantity, isQuickSaleProduct } from "./saleUtil
 
 interface ProductSaleOverlayProps {
   canManageProducts?: boolean;
+  stockControlEnabled?: boolean;
   product: Product;
   onClose: () => void;
   onEdit: (product: Product) => void;
@@ -15,6 +16,7 @@ interface ProductSaleOverlayProps {
 
 export function ProductSaleOverlay({
   canManageProducts = false,
+  stockControlEnabled = true,
   product,
   onClose,
   onEdit,
@@ -71,7 +73,7 @@ export function ProductSaleOverlay({
             </button>
           </div>
 
-          <ProductSaleConfigurator product={product} onCancel={onClose} onAdded={onClose} />
+          <ProductSaleConfigurator product={product} stockControlEnabled={stockControlEnabled} onCancel={onClose} onAdded={onClose} />
 
           {canManageProducts && (
             <div className="mt-4 flex justify-center gap-3 border-t border-slate-100 pt-4">
@@ -198,7 +200,7 @@ export function ProductSaleOverlay({
                     {formatPriceLabel(product)}
                   </p>
                 </div>
-                {product.saleType !== "variable" && <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
+                {stockControlEnabled && product.saleType !== "variable" && <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     {canManageProducts ? "Stock del local" : "Stock"}
                   </p>
@@ -206,7 +208,7 @@ export function ProductSaleOverlay({
                     {formatQuantity(product.stock, product.stockUnit)}
                   </p>
                 </div>}
-                {canManageProducts && product.saleType !== "variable" && (
+                {stockControlEnabled && canManageProducts && product.saleType !== "variable" && (
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                       Stock global
@@ -218,7 +220,7 @@ export function ProductSaleOverlay({
                 )}
               </div>
 
-              {canManageProducts && product.saleType !== "variable" && visibleLocalStocks.length > 0 && (
+              {stockControlEnabled && canManageProducts && product.saleType !== "variable" && visibleLocalStocks.length > 0 && (
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Stock por local
@@ -255,6 +257,7 @@ export function ProductSaleOverlay({
 
               <ProductSaleConfigurator
                 product={product}
+                stockControlEnabled={stockControlEnabled}
                 compact
                 onCancel={onClose}
                 onAdded={onClose}

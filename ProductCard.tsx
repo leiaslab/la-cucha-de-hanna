@@ -6,6 +6,7 @@ import { formatPriceLabel, formatQuantity, isQuickSaleProduct } from "./saleUtil
 
 interface ProductCardProps {
   canManageProducts?: boolean;
+  stockControlEnabled?: boolean;
   isKioskMode?: boolean;
   product: Product;
   isSelling: boolean;
@@ -18,6 +19,7 @@ function getAdaptiveFontSize(text: string, max: number, min: number, slope: numb
 
 export const ProductCard = memo(function ProductCard({
   canManageProducts = false,
+  stockControlEnabled = true,
   isKioskMode = false,
   product,
   isSelling,
@@ -46,15 +48,15 @@ export const ProductCard = memo(function ProductCard({
     : product.lowStockAlertThreshold ?? 5;
   const isVariableProduct = product.saleType === "variable";
   const isQuickSale = isQuickSaleProduct(product);
-  const isLowStock = !isVariableProduct && displayedStock > 0 && displayedStock <= lowStockThreshold;
+  const isLowStock = stockControlEnabled && !isVariableProduct && displayedStock > 0 && displayedStock <= lowStockThreshold;
   const nameFontSize = getAdaptiveFontSize(product.name, isKioskMode ? 13.5 : 11.5, isKioskMode ? 9.5 : 8.5, 0.12);
   const priceFontSize = getAdaptiveFontSize(priceLabel, isKioskMode ? 15.5 : 13.5, isKioskMode ? 11.5 : 10, 0.1);
   const visibleLocalStocks =
     product.localStocks
-      ?.filter((localStock) => !isVariableProduct && localStock.stock > 0)
+      ?.filter((localStock) => stockControlEnabled && !isVariableProduct && localStock.stock > 0)
       .sort((a, b) => b.stock - a.stock) ?? [];
   const stockBadgeClasses =
-    isVariableProduct
+    isVariableProduct || !stockControlEnabled
       ? "border-blue-200 bg-gradient-to-br from-blue-500 via-blue-500 to-indigo-600 text-white shadow-[0_14px_28px_rgba(59,130,246,0.3)]"
       : displayedStock <= 0
       ? "border-red-200 bg-gradient-to-br from-red-500 via-red-500 to-rose-600 text-white shadow-[0_14px_28px_rgba(239,68,68,0.35)]"
@@ -96,13 +98,13 @@ export const ProductCard = memo(function ProductCard({
           className={`absolute right-2 top-2 z-10 flex items-center gap-1.5 border font-bold tracking-[0.02em] transition-transform group-hover:scale-105 ${
             isKioskMode ? "rounded-[1rem] px-3 py-2" : "rounded-[0.95rem] px-2.5 py-1.5"
           } ${stockBadgeClasses}`}
-          title={isVariableProduct ? "Producto sin control de stock" : canManageProducts ? "Stock global" : "Stock del local"}
+          title={isVariableProduct || !stockControlEnabled ? "Producto sin control de stock" : canManageProducts ? "Stock global" : "Stock del local"}
         >
           <span className={`${isKioskMode ? "text-[9px]" : "text-[8px]"} uppercase tracking-[0.18em] text-white/80`}>
-            {isQuickSale ? "Cobro" : isVariableProduct ? "Venta" : "Stock"}
+            {isQuickSale ? "Cobro" : isVariableProduct || !stockControlEnabled ? "Venta" : "Stock"}
           </span>
           <span className={`${isKioskMode ? "text-[11px]" : "text-[10px]"} font-black leading-none`}>
-            {isQuickSale ? "Rápido" : isVariableProduct ? "Sin control" : displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
+            {isQuickSale ? "Rápido" : isVariableProduct || !stockControlEnabled ? "Sin control" : displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
           </span>
         </div>
 

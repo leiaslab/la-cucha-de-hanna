@@ -11,6 +11,7 @@ import { showToast } from "./Toast";
 
 interface CartSidebarProps {
   currentUser: SessionUser | null;
+  stockControlEnabled?: boolean;
   isDarkMode: boolean;
   isKioskMode: boolean;
   showWideLayout: boolean;
@@ -19,6 +20,7 @@ interface CartSidebarProps {
 
 export function CartSidebar({
   currentUser,
+  stockControlEnabled = true,
   isDarkMode,
   isKioskMode,
   showWideLayout,
@@ -74,7 +76,7 @@ export function CartSidebar({
       return;
     }
 
-    if (delta > 0) {
+    if (stockControlEnabled && delta > 0) {
       const product = await db.products.get(item.productId);
       if (product && item.quantity + delta > product.stock) {
         showToast(
@@ -301,7 +303,7 @@ export function CartSidebar({
                               item.id &&
                               handleUpdateQuantity(item.id, item.step ?? getQuantityStep(item.stockUnit))
                             }
-                            disabled={item.quantity >= item.stock}
+                            disabled={stockControlEnabled && item.quantity >= item.stock}
                             className={`flex items-center justify-center rounded-full border border-slate-200 bg-white font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 ${
                               isKioskMode ? "h-9 w-9 text-sm" : "h-7 w-7 text-xs"
                             }`}

@@ -21,6 +21,7 @@ export type {
   SaleType,
   SessionUser,
   Shift,
+  ShiftExpense,
   ShiftStatus,
   StockUnit,
 } from "./src/lib/pos-types";

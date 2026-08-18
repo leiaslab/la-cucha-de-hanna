@@ -443,6 +443,7 @@ export default function Home() {
             <ProductList
               canManageProducts={user?.role === "admin"}
               activeLocalId={user?.localId}
+              stockControlEnabled={activeLocal?.stockControlEnabled ?? true}
               onEditProduct={handleEditProduct}
               isKioskMode={isKioskMode}
               isTouchOptimized={isTouchOptimized}
@@ -628,6 +629,7 @@ export default function Home() {
 
           <CartSidebar
             currentUser={user}
+            stockControlEnabled={activeLocal?.stockControlEnabled ?? true}
             isDarkMode={isDarkMode}
             isKioskMode={isKioskMode}
             showWideLayout={showWideCartSidebar}
@@ -669,6 +671,7 @@ export default function Home() {
       {isCartOpen && user && (
         <CartModal
           currentUser={user}
+          stockControlEnabled={activeLocal?.stockControlEnabled ?? true}
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
         />

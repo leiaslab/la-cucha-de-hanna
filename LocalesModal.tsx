@@ -226,6 +226,7 @@ interface LocalesModalProps {
 export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalProps) {
   const [newLocalName, setNewLocalName] = useState("");
   const [newLocalPrinterEnabled, setNewLocalPrinterEnabled] = useState(true);
+  const [newLocalStockControlEnabled, setNewLocalStockControlEnabled] = useState(true);
   const [newLocalProductIds, setNewLocalProductIds] = useState<Set<number>>(() => new Set());
   const [newLocalProductSearch, setNewLocalProductSearch] = useState("");
   const [isCreatingLocal, setIsCreatingLocal] = useState(false);
@@ -234,6 +235,7 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
   const [isSavingLocal, setIsSavingLocal] = useState(false);
   const [isUpdatingLogoLocalId, setIsUpdatingLogoLocalId] = useState<number | null>(null);
   const [isUpdatingPrinterLocalId, setIsUpdatingPrinterLocalId] = useState<number | null>(null);
+  const [isUpdatingStockControlLocalId, setIsUpdatingStockControlLocalId] = useState<number | null>(null);
   const [isDeletingLocalId, setIsDeletingLocalId] = useState<number | null>(null);
   const [managingProductsLocalId, setManagingProductsLocalId] = useState<number | null>(null);
   const [managedProductIds, setManagedProductIds] = useState<Set<number>>(() => new Set());
@@ -262,10 +264,12 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
       const createdLocal = await createLocalRemote({
         name: trimmedName,
         thermalPrinterEnabled: newLocalPrinterEnabled,
+        stockControlEnabled: newLocalStockControlEnabled,
         productIds: Array.from(newLocalProductIds),
       });
       setNewLocalName("");
       setNewLocalPrinterEnabled(true);
+      setNewLocalStockControlEnabled(true);
       setNewLocalProductIds(new Set());
       setNewLocalProductSearch("");
       onLocalCreated?.(createdLocal.id);
@@ -330,6 +334,29 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
       );
     } finally {
       setIsUpdatingPrinterLocalId(null);
+    }
+  };
+
+  const handleToggleLocalStockControl = async (localId: number, enabled: boolean) => {
+    setError(null);
+    setIsUpdatingStockControlLocalId(localId);
+
+    try {
+      await updateLocalRemote(localId, { stockControlEnabled: enabled });
+      showToast(
+        enabled
+          ? "Control de stock activado para este local."
+          : "Control de stock desactivado para este local.",
+        "success",
+      );
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "No se pudo actualizar el control de stock del local.",
+      );
+    } finally {
+      setIsUpdatingStockControlLocalId(null);
     }
   };
 
@@ -510,6 +537,23 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
               </div>
             </label>
 
+            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/50">
+              <input
+                type="checkbox"
+                checked={newLocalStockControlEnabled}
+                onChange={(event) => setNewLocalStockControlEnabled(event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  Controlar stock en este local
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Si lo desactivas, el stock se oculta y las ventas no descuentan existencias.
+                </p>
+              </div>
+            </label>
+
             <div>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
@@ -605,6 +649,29 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
                                   {isUpdatingPrinterLocalId === locale.id
                                     ? "Guardando configuracion..."
                                     : "Controla si este local puede imprimir tickets."}
+                                </p>
+                              </div>
+                            </label>
+                            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                              <input
+                                type="checkbox"
+                                checked={locale.stockControlEnabled ?? true}
+                                disabled={isUpdatingStockControlLocalId === locale.id}
+                                onChange={(event) =>
+                                  void handleToggleLocalStockControl(locale.id, event.target.checked)
+                                }
+                                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div>
+                                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                                  Controlar stock
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  {isUpdatingStockControlLocalId === locale.id
+                                    ? "Guardando configuracion..."
+                                    : (locale.stockControlEnabled ?? true)
+                                      ? "Muestra y descuenta stock al vender."
+                                      : "Stock oculto y sin descuento para todo el local."}
                                 </p>
                               </div>
                             </label>

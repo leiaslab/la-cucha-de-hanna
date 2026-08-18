@@ -28,6 +28,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/locale
           ? body.logoUrl
           : undefined,
       thermalPrinterEnabled: body.thermalPrinterEnabled,
+      stockControlEnabled: body.stockControlEnabled,
       productIds: Array.isArray(body.productIds) ? body.productIds : undefined,
     });
     return NextResponse.json({ data: updated });

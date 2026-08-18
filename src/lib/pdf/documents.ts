@@ -279,6 +279,7 @@ export async function renderShiftPdf({
     `Efectivo: ${formatCurrency(shift.cashSales ?? 0)}`,
     `Mercado Pago: ${formatCurrency(shift.mercadoPagoSales ?? 0)}`,
     `Transferencia: ${formatCurrency(shift.transferSales ?? 0)}`,
+    `Gastos de caja: -${formatCurrency(shift.cashExpenses ?? 0)}`,
   ].forEach((line) => {
     page.drawText(line, {
       x: margin,

@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     const local = await createLocal({
       name: body.name ?? "",
       thermalPrinterEnabled: body.thermalPrinterEnabled,
+      stockControlEnabled: body.stockControlEnabled,
       productIds: Array.isArray(body.productIds) ? body.productIds : [],
     });
     return NextResponse.json({ data: local }, { status: 201 });

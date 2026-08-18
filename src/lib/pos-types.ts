@@ -11,6 +11,7 @@ export interface LocalRecord {
   name: string;
   logoUrl?: string;
   thermalPrinterEnabled?: boolean;
+  stockControlEnabled?: boolean;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -94,10 +95,22 @@ export interface Shift {
   reservationCash?: number;
   reservationMercadoPago?: number;
   reservationTransfer?: number;
+  cashExpenses?: number;
+  expenses?: ShiftExpense[];
   openedByUserId?: number;
   closedByUserId?: number;
   localId?: number;
   localName?: string;
+}
+
+export interface ShiftExpense {
+  id: number;
+  shiftId: number;
+  userId?: number;
+  localId?: number;
+  amount: number;
+  reason: string;
+  createdAt: number;
 }
 
 export interface SessionUser {
@@ -142,6 +155,7 @@ export interface AppUserUpdateInput {
 export interface LocalCreateInput {
   name: string;
   thermalPrinterEnabled?: boolean;
+  stockControlEnabled?: boolean;
   productIds?: number[];
 }
 
@@ -149,6 +163,7 @@ export interface LocalUpdateInput {
   name?: string;
   logoUrl?: string | null;
   thermalPrinterEnabled?: boolean;
+  stockControlEnabled?: boolean;
   productIds?: number[];
 }
 
@@ -312,6 +327,16 @@ export interface ShiftCloseInput {
   closingNote?: string;
   countedCash?: number;
   generatePdf?: boolean;
+}
+
+export interface ShiftExpenseInput {
+  amount: number;
+  reason: string;
+}
+
+export interface ShiftExpenseResult {
+  expense: ShiftExpense;
+  shift: Shift;
 }
 
 export interface SalesResetInput {

@@ -27,6 +27,9 @@ import type {
   SalesResetResult,
   Shift,
   ShiftCloseInput,
+  ShiftExpense,
+  ShiftExpenseInput,
+  ShiftExpenseResult,
   ShiftOpenInput,
 } from "./pos-types";
 import { uploadPdfToDrive } from "./google/drive";
@@ -121,6 +124,17 @@ type ShiftRow = {
   reservation_cash: number | null;
   reservation_mercado_pago: number | null;
   reservation_transfer: number | null;
+  cash_expenses: number | null;
+};
+
+type ShiftExpenseRow = {
+  id: number;
+  shift_id: number;
+  user_id: number | null;
+  local_id: number | null;
+  amount: number;
+  reason: string;
+  created_at: string;
 };
 
 type FastCheckoutStockRow = {
@@ -173,6 +187,7 @@ type LocalRow = {
   name: string;
   logo_url: string | null;
   thermal_printer_enabled: boolean;
+  stock_control_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -342,7 +357,23 @@ function mapOrderRow(
   };
 }
 
-function mapShiftRow(row: ShiftRow, localNamesById?: Map<number, LocalRow>): Shift {
+function mapShiftExpenseRow(row: ShiftExpenseRow): ShiftExpense {
+  return {
+    id: row.id,
+    shiftId: row.shift_id,
+    userId: row.user_id ?? undefined,
+    localId: row.local_id ?? undefined,
+    amount: Number(row.amount),
+    reason: row.reason,
+    createdAt: toMillis(row.created_at) ?? Date.now(),
+  };
+}
+
+function mapShiftRow(
+  row: ShiftRow,
+  localNamesById?: Map<number, LocalRow>,
+  expensesByShiftId?: Map<number, ShiftExpense[]>,
+): Shift {
   const localReference = row.local_id ? localNamesById?.get(row.local_id) : undefined;
 
   return {
@@ -369,6 +400,8 @@ function mapShiftRow(row: ShiftRow, localNamesById?: Map<number, LocalRow>): Shi
     reservationCash: row.reservation_cash ?? 0,
     reservationMercadoPago: row.reservation_mercado_pago ?? 0,
     reservationTransfer: row.reservation_transfer ?? 0,
+    cashExpenses: Number(row.cash_expenses ?? 0),
+    expenses: expensesByShiftId?.get(row.id) ?? [],
   };
 }
 
@@ -399,12 +432,25 @@ function createLocalMap(rows: LocalRow[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
+function createShiftExpenseMap(rows: ShiftExpenseRow[]) {
+  const expensesByShiftId = new Map<number, ShiftExpense[]>();
+
+  rows.forEach((row) => {
+    const current = expensesByShiftId.get(row.shift_id) ?? [];
+    current.push(mapShiftExpenseRow(row));
+    expensesByShiftId.set(row.shift_id, current);
+  });
+
+  return expensesByShiftId;
+}
+
 function mapLocalRow(row: LocalRow): LocalRecord {
   return {
     id: row.id,
     name: row.name,
     logoUrl: row.logo_url ?? undefined,
     thermalPrinterEnabled: row.thermal_printer_enabled,
+    stockControlEnabled: row.stock_control_enabled ?? true,
     createdAt: toMillis(row.created_at),
     updatedAt: toMillis(row.updated_at),
   };
@@ -594,6 +640,7 @@ export async function createLocal(input: LocalCreateInput): Promise<LocalRecord>
       .insert({
         name: normalizedName,
         thermal_printer_enabled: input.thermalPrinterEnabled ?? true,
+        stock_control_enabled: input.stockControlEnabled ?? true,
       })
       .select("*")
       .single(),
@@ -623,6 +670,7 @@ export async function updateLocal(localId: number, input: LocalUpdateInput): Pro
     name?: string;
     logo_url?: string | null;
     thermal_printer_enabled?: boolean;
+    stock_control_enabled?: boolean;
   } = {};
 
   if (typeof input.name === "string") {
@@ -645,6 +693,10 @@ export async function updateLocal(localId: number, input: LocalUpdateInput): Pro
 
   if (typeof input.thermalPrinterEnabled === "boolean") {
     updates.thermal_printer_enabled = input.thermalPrinterEnabled;
+  }
+
+  if (typeof input.stockControlEnabled === "boolean") {
+    updates.stock_control_enabled = input.stockControlEnabled;
   }
 
   if (input.logoUrl !== undefined) {
@@ -825,12 +877,24 @@ async function getShiftById(shiftId: number) {
   );
 
   const shiftRow = row as ShiftRow;
-  const localRows =
+  const [localRows, expenseRows] = await Promise.all([
     shiftRow.local_id
-      ? await expectMany(supabase.from("locales").select("*").eq("id", shiftRow.local_id))
-      : [];
+      ? expectMany(supabase.from("locales").select("*").eq("id", shiftRow.local_id))
+      : Promise.resolve([]),
+    expectMany(
+      supabase
+        .from("gastos_caja")
+        .select("*")
+        .eq("shift_id", shiftId)
+        .order("created_at", { ascending: false }),
+    ),
+  ]);
 
-  return mapShiftRow(shiftRow, createLocalMap(localRows as LocalRow[]));
+  return mapShiftRow(
+    shiftRow,
+    createLocalMap(localRows as LocalRow[]),
+    createShiftExpenseMap(expenseRows as ShiftExpenseRow[]),
+  );
 }
 
 async function storeShiftCashCount(
@@ -876,12 +940,18 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
     productLocalStocksQuery.eq("local_id", activeLocalId);
   }
 
-  const [products, productImages, productLocalStocks, sales, shifts, clients, pdfs, userRows, localRows] = await Promise.all([
+  const expenseQuery = supabase.from("gastos_caja").select("*").order("created_at", { ascending: false });
+  if (!isAdmin && userId !== null) {
+    expenseQuery.eq("user_id", userId);
+  }
+
+  const [products, productImages, productLocalStocks, sales, shifts, shiftExpenses, clients, pdfs, userRows, localRows] = await Promise.all([
     expectMany(supabase.from("productos").select(PRODUCT_BOOTSTRAP_COLUMNS).order("name")),
     expectMany(supabase.from("productos").select("id").not("image_url", "is", null)),
     expectMany(productLocalStocksQuery),
     expectMany(salesQuery),
     expectMany(shiftsQuery),
+    expectMany(expenseQuery),
     expectMany(supabase.from("clientes").select("*").order("full_name")),
     expectMany(supabase.from("pdfs").select("*").order("created_at", { ascending: false })),
     expectMany(supabase.from("app_users").select("id,full_name,locale_id")),
@@ -890,6 +960,7 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
 
   const userNamesById = createUserReferenceMap(userRows as AppUserReferenceRow[]);
   const localNamesById = createLocalMap(localRows as LocalRow[]);
+  const expensesByShiftId = createShiftExpenseMap(shiftExpenses as ShiftExpenseRow[]);
   const localStocksByProductId = createProductLocalStockMap(productLocalStocks as ProductLocalStockRow[]);
   const productIdsWithImages = new Set(
     (productImages as Array<{ id: number }>).map((product) => product.id),
@@ -915,7 +986,7 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
       ),
     ),
     orders: (sales as SaleRow[]).map((row) => mapOrderRow(row, userNamesById, localNamesById)),
-    shifts: (shifts as ShiftRow[]).map((row) => mapShiftRow(row, localNamesById)),
+    shifts: (shifts as ShiftRow[]).map((row) => mapShiftRow(row, localNamesById, expensesByShiftId)),
     clients: (clients as ClientRow[]).map(mapClientRow),
     pdfs: (pdfs as PdfRow[]).map(mapPdfRow),
   };
@@ -1570,6 +1641,49 @@ export async function openShiftForUser(input: ShiftOpenInput, sessionUser: Sessi
   }
 
   return getShiftById(Number(data));
+}
+
+export async function registerShiftExpenseForUser(
+  shiftId: number,
+  input: ShiftExpenseInput,
+  sessionUser: SessionUser,
+): Promise<ShiftExpenseResult> {
+  const amount = Number(input.amount);
+  const reason = input.reason.trim();
+
+  if (!Number.isFinite(shiftId) || !Number.isFinite(amount) || amount <= 0) {
+    throw new Error("El gasto debe tener un importe mayor que cero.");
+  }
+
+  if (!reason) {
+    throw new Error("Escribe el motivo del gasto.");
+  }
+
+  if (reason.length > 300) {
+    throw new Error("El motivo del gasto no puede superar los 300 caracteres.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase.rpc("register_cash_expense", {
+    p_shift_id: shiftId,
+    p_user_id: sessionUser.id ?? null,
+    p_amount: amount,
+    p_reason: reason,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const result = data as { expense?: ShiftExpenseRow; shift?: ShiftRow } | null;
+  if (!result?.expense?.id || !result.shift?.id) {
+    throw new Error("Supabase no devolvio un gasto valido.");
+  }
+
+  return {
+    expense: mapShiftExpenseRow(result.expense),
+    shift: await getShiftById(shiftId),
+  };
 }
 
 export async function closeShift(shiftId: number, input: ShiftCloseInput) {

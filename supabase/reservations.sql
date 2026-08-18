@@ -289,6 +289,7 @@ declare
   v_total_sales double precision;
   v_order_count integer;
   v_opening_cash double precision;
+  v_cash_expenses numeric(14, 2);
   v_pending_sales_count integer;
   v_reservation_total double precision;
   v_reservation_cash double precision;
@@ -301,7 +302,7 @@ begin
     raise exception 'No se puede cerrar el turno porque hay % ventas pendientes de sincronizar.', v_pending_sales_count;
   end if;
 
-  select opening_cash into v_opening_cash
+  select opening_cash, cash_expenses into v_opening_cash, v_cash_expenses
   from public.arqueos
   where id = p_shift_id and status = 'open'
     and ((p_user_id is null and opened_by_user_id is null) or opened_by_user_id = p_user_id)
@@ -329,11 +330,12 @@ begin
       mercado_pago_sales = v_mp_sales, transfer_sales = v_transfer_sales,
       reservation_collections = v_reservation_total, reservation_cash = v_reservation_cash,
       reservation_mercado_pago = v_reservation_mp, reservation_transfer = v_reservation_transfer,
-      expected_cash = coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0) + coalesce(v_reservation_cash, 0)
+      cash_expenses = coalesce(v_cash_expenses, 0),
+      expected_cash = coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0) + coalesce(v_reservation_cash, 0) - coalesce(v_cash_expenses, 0)
   where id = p_shift_id;
 
   insert into public.movimientos (type, amount, description, reference_type, reference_id)
-  values ('closing', coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0) + coalesce(v_reservation_cash, 0),
+  values ('closing', coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0) + coalesce(v_reservation_cash, 0) - coalesce(v_cash_expenses, 0),
           'Cierre de turno', 'shift', p_shift_id);
   return p_shift_id;
 end;

@@ -11,11 +11,12 @@ import { showToast } from "./Toast";
 
 interface CartModalProps {
   currentUser: SessionUser | null;
+  stockControlEnabled?: boolean;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
+export function CartModal({ currentUser, stockControlEnabled = true, isOpen, onClose }: CartModalProps) {
   const [activeTab, setActiveTab] = useState<"cart" | "orders">("cart");
   const [notes, setNotes] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -96,7 +97,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
       return;
     }
 
-    if (delta > 0) {
+    if (stockControlEnabled && delta > 0) {
       const product = await db.products.get(item.productId);
       if (product && item.quantity + delta > product.stock) {
         showToast(`No puedes agregar mas de "${item.name}". El stock actual es ${product.stock}.`, "error");
@@ -253,7 +254,7 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
                               item.step ?? getQuantityStep(item.stockUnit),
                             )
                           }
-                          disabled={item.quantity >= item.stock}
+                          disabled={stockControlEnabled && item.quantity >= item.stock}
                           className="flex h-8 w-8 items-center justify-center rounded-full border bg-white shadow-sm disabled:opacity-50"
                         >
                           +

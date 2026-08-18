@@ -11,6 +11,7 @@ import { showToast } from "./Toast";
 interface ProductListProps {
   canManageProducts?: boolean;
   activeLocalId?: number | null;
+  stockControlEnabled?: boolean;
   onEditProduct: (product: Product) => void;
   extraControls?: ReactNode;
   leadingContent?: ReactNode;
@@ -21,6 +22,7 @@ interface ProductListProps {
 export function ProductList({
   canManageProducts = false,
   activeLocalId,
+  stockControlEnabled = true,
   onEditProduct,
   extraControls,
   leadingContent,
@@ -123,7 +125,7 @@ export function ProductList({
   }, [activeLocalId, searchTerm, selectedCategory, selectedSubcategory]);
 
   useEffect(() => {
-    if (!productsForActiveLocal) {
+    if (!productsForActiveLocal || !stockControlEnabled) {
       return;
     }
 
@@ -159,7 +161,7 @@ export function ProductList({
         : `Stock bajo en ${lowStockProducts.length} productos. Revisa "Reporte stock".`,
       "warning",
     );
-  }, [canManageProducts, productsForActiveLocal]);
+  }, [canManageProducts, productsForActiveLocal, stockControlEnabled]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -284,6 +286,7 @@ export function ProductList({
               <ProductCard
                 key={product.id}
                 canManageProducts={canManageProducts}
+                stockControlEnabled={stockControlEnabled}
                 isKioskMode={isKioskMode}
                 product={product}
                 isSelling={activeSaleProductId === product.id}
@@ -297,6 +300,7 @@ export function ProductList({
       {activeSaleProduct && (
         <ProductSaleOverlay
           canManageProducts={canManageProducts}
+          stockControlEnabled={stockControlEnabled}
           product={activeSaleProduct}
           onClose={() => setActiveSaleProductId(null)}
           onEdit={(product) => {

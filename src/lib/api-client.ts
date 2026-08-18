@@ -24,6 +24,8 @@ import type {
   SalesResetResult,
   Shift,
   ShiftCloseInput,
+  ShiftExpenseInput,
+  ShiftExpenseResult,
   ShiftOpenInput,
   TicketEmailPayload,
   TicketEmailResult,
@@ -399,6 +401,18 @@ export async function createLocalRemote(payload: LocalCreateInput) {
 
   await syncRemoteSnapshot();
   return local;
+}
+
+export async function registerShiftExpenseRemote(
+  shiftId: number,
+  payload: ShiftExpenseInput,
+) {
+  const result = await apiFetch<ShiftExpenseResult>(`/api/shifts/${shiftId}/expenses`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  await db.shifts.put(result.shift);
+  return result;
 }
 
 export async function updateLocalRemote(localId: number, payload: LocalUpdateInput) {

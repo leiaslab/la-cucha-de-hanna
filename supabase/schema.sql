@@ -66,6 +66,7 @@ create table if not exists public.locales (
   name text not null unique,
   logo_url text,
   thermal_printer_enabled boolean not null default true,
+  stock_control_enabled boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -103,6 +104,28 @@ create table if not exists public.arqueos (
   cash_difference double precision
 );
 
+alter table public.arqueos
+  add column if not exists cash_expenses numeric(14, 2) not null default 0;
+
+create table if not exists public.gastos_caja (
+  id bigint generated always as identity primary key,
+  shift_id bigint not null references public.arqueos(id) on delete cascade,
+  user_id bigint references public.app_users(id) on delete set null,
+  local_id bigint references public.locales(id) on delete set null,
+  amount numeric(14, 2) not null check (amount > 0),
+  reason text not null check (char_length(btrim(reason)) between 1 and 300),
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists gastos_caja_shift_created_idx
+on public.gastos_caja (shift_id, created_at desc);
+
+create index if not exists gastos_caja_local_created_idx
+on public.gastos_caja (local_id, created_at desc);
+
+create index if not exists gastos_caja_user_created_idx
+on public.gastos_caja (user_id, created_at desc);
+
 create table if not exists public.ventas (
   id bigserial primary key,
   client_id bigint references public.clientes(id) on delete set null,
@@ -136,6 +159,9 @@ alter table public.ventas
 
 alter table public.locales
   add column if not exists thermal_printer_enabled boolean not null default true;
+
+alter table public.locales
+  add column if not exists stock_control_enabled boolean not null default true;
 
 alter table public.locales
   add column if not exists logo_url text;
@@ -645,6 +671,7 @@ declare
   v_total_sales double precision;
   v_order_count integer;
   v_opening_cash double precision;
+  v_cash_expenses numeric(14, 2);
   v_pending_sales_count integer;
 begin
   -- Validar si hay ventas pendientes de sincronizar para este turno
@@ -657,8 +684,8 @@ begin
     raise exception 'No se puede cerrar el turno porque hay % ventas pendientes de sincronizar.', v_pending_sales_count;
   end if;
 
-  select opening_cash
-  into v_opening_cash
+  select opening_cash, cash_expenses
+  into v_opening_cash, v_cash_expenses
   from public.arqueos
   where id = p_shift_id
     and status = 'open'
@@ -697,7 +724,8 @@ begin
       cash_sales = v_cash_sales,
       mercado_pago_sales = v_mp_sales,
       transfer_sales = v_transfer_sales,
-      expected_cash = coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0)
+      cash_expenses = coalesce(v_cash_expenses, 0),
+      expected_cash = coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0) - coalesce(v_cash_expenses, 0)
   where id = p_shift_id;
 
   insert into public.movimientos (
@@ -709,7 +737,7 @@ begin
   )
   values (
     'closing',
-    coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0),
+    coalesce(v_opening_cash, 0) + coalesce(v_cash_sales, 0) - coalesce(v_cash_expenses, 0),
     'Cierre de turno',
     'shift',
     p_shift_id
@@ -835,6 +863,60 @@ begin
 end;
 $$;
 
+create or replace function public.register_cash_expense(
+  p_shift_id bigint,
+  p_user_id bigint,
+  p_amount numeric,
+  p_reason text
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_shift public.arqueos%rowtype;
+  v_expense public.gastos_caja%rowtype;
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if p_amount is null or p_amount <= 0 or p_amount > 1000000000000 then
+    raise exception 'El gasto debe tener un importe mayor que cero.';
+  end if;
+
+  if char_length(v_reason) = 0 or char_length(v_reason) > 300 then
+    raise exception 'El motivo del gasto debe tener entre 1 y 300 caracteres.';
+  end if;
+
+  select * into v_shift
+  from public.arqueos
+  where id = p_shift_id
+    and status = 'open'
+    and ((p_user_id is null and opened_by_user_id is null) or opened_by_user_id = p_user_id)
+  for update;
+
+  if not found then
+    raise exception 'No se encontro un turno abierto para registrar el gasto.';
+  end if;
+
+  insert into public.gastos_caja (shift_id, user_id, local_id, amount, reason)
+  values (v_shift.id, p_user_id, v_shift.local_id, round(p_amount, 2), v_reason)
+  returning * into v_expense;
+
+  update public.arqueos
+  set cash_expenses = cash_expenses + v_expense.amount,
+      expected_cash = opening_cash
+        + coalesce((select sum(total) from public.ventas where shift_id = v_shift.id and payment_method = 'cash'), 0)
+        - (cash_expenses + v_expense.amount)
+  where id = v_shift.id
+  returning * into v_shift;
+
+  insert into public.movimientos (type, amount, description, reference_type, reference_id)
+  values ('expense', -v_expense.amount, v_expense.reason, 'shift', v_shift.id);
+
+  return jsonb_build_object('expense', to_jsonb(v_expense), 'shift', to_jsonb(v_shift));
+end;
+$$;
+
 -- La aplicacion accede a Supabase exclusivamente desde el servidor con service_role.
 -- Los roles publicos no deben consultar ni modificar estas tablas o funciones.
 alter table public.clientes enable row level security;
@@ -847,6 +929,7 @@ alter table public.detalle_ventas enable row level security;
 alter table public.movimientos enable row level security;
 alter table public.pdfs enable row level security;
 alter table public.productos_stock_local enable row level security;
+alter table public.gastos_caja enable row level security;
 
 revoke all on schema public from public, anon, authenticated;
 revoke all privileges on all tables in schema public from public, anon, authenticated;

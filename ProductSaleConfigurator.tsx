@@ -18,6 +18,7 @@ type WeightInputMode = "quantity" | "amount";
 
 interface ProductSaleConfiguratorProps {
   product: Product;
+  stockControlEnabled?: boolean;
   compact?: boolean;
   onCancel?: () => void;
   onAdded?: () => void;
@@ -25,6 +26,7 @@ interface ProductSaleConfiguratorProps {
 
 export function ProductSaleConfigurator({
   product,
+  stockControlEnabled = true,
   compact = false,
   onCancel,
   onAdded,
@@ -84,7 +86,7 @@ export function ProductSaleConfigurator({
   const remainingStock = Math.max(0, roundQuantity(product.stock - selectedQuantity));
   const canAddToCart =
     selectedQuantity > 0 && selectedTotal > 0 &&
-    (product.saleType === "variable" || canSellQuantity(product.stock, selectedQuantity, product.stockUnit));
+    (!stockControlEnabled || product.saleType === "variable" || canSellQuantity(product.stock, selectedQuantity, product.stockUnit));
 
   const handleAddToCart = async () => {
     if (!product.id || !canAddToCart) {
@@ -113,7 +115,7 @@ export function ProductSaleConfigurator({
     const existing = await db.cart.where("productId").equals(product.id).first();
     const nextQuantity = (existing?.quantity || 0) + selectedQuantity;
 
-    if (!canSellQuantity(product.stock, nextQuantity, product.stockUnit)) {
+    if (stockControlEnabled && !canSellQuantity(product.stock, nextQuantity, product.stockUnit)) {
       showToast("No hay stock suficiente para agregar esa cantidad al carrito.", "error");
       return;
     }
@@ -289,13 +291,13 @@ export function ProductSaleConfigurator({
               ? "Venta rápida"
               : `${product.saleType === "variable" ? "Tipo" : "Cantidad"}: ${quantityPreview}`}
           </span>
-          {product.saleType !== "variable" && (
+          {stockControlEnabled && product.saleType !== "variable" && (
             <span>Stock: {formatQuantity(remainingStock, product.stockUnit)}</span>
           )}
         </div>
       </div>
 
-      {product.saleType !== "variable" && !canAddToCart && selectedQuantity > 0 && (
+      {stockControlEnabled && product.saleType !== "variable" && !canAddToCart && selectedQuantity > 0 && (
         <p className="text-xs font-medium text-red-600">
           La cantidad elegida supera el stock disponible.
         </p>

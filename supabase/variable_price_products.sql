@@ -31,6 +31,7 @@ declare
   v_payment_method text;
   v_user_id bigint;
   v_local_id bigint;
+  v_stock_control_enabled boolean := true;
   v_total double precision := 0;
   v_product record;
   v_order jsonb;
@@ -48,15 +49,16 @@ begin
     raise exception 'La venta no contiene productos.';
   end if;
 
-  select id, local_id
-  into v_shift_id, v_local_id
-  from public.arqueos
-  where status = 'open'
+  select shift_row.id, shift_row.local_id, coalesce(local_row.stock_control_enabled, true)
+  into v_shift_id, v_local_id, v_stock_control_enabled
+  from public.arqueos as shift_row
+  left join public.locales as local_row on local_row.id = shift_row.local_id
+  where shift_row.status = 'open'
     and (
-      (v_user_id is null and opened_by_user_id is null)
-      or opened_by_user_id = v_user_id
+      (v_user_id is null and shift_row.opened_by_user_id is null)
+      or shift_row.opened_by_user_id = v_user_id
     )
-  order by opened_at desc
+  order by shift_row.opened_at desc
   limit 1;
 
   if v_shift_id is null then
@@ -117,7 +119,7 @@ begin
         raise exception 'La cantidad debe ser mayor que cero.';
       end if;
 
-      if v_local_id is not null then
+      if v_stock_control_enabled and v_local_id is not null then
         update public.productos_stock_local
         set stock = stock - v_quantity
         where product_id = v_product_id
@@ -129,14 +131,16 @@ begin
         end if;
       end if;
 
-      update public.productos
-      set stock = stock - v_quantity,
-          last_updated = timezone('utc', now())
-      where id = v_product_id
-        and stock >= v_quantity;
+      if v_stock_control_enabled then
+        update public.productos
+        set stock = stock - v_quantity,
+            last_updated = timezone('utc', now())
+        where id = v_product_id
+          and stock >= v_quantity;
 
-      if not found then
-        raise exception 'Stock global insuficiente para el producto ID %', v_product_id;
+        if not found then
+          raise exception 'Stock global insuficiente para el producto ID %', v_product_id;
+        end if;
       end if;
     end if;
 
@@ -215,7 +219,8 @@ begin
   left join public.productos_stock_local as local_stock_row
     on local_stock_row.product_id = product_row.id
    and local_stock_row.local_id = v_local_id
-  where product_row.sale_type <> 'variable'
+  where v_stock_control_enabled
+    and product_row.sale_type <> 'variable'
     and product_row.id in (
       select distinct (item.value ->> 'product_id')::bigint
       from jsonb_array_elements(coalesce(p_payload -> 'items', '[]'::jsonb)) as item(value)
