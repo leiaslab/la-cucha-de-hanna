@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type ChangeEvent } from "react";
+import { useMemo, useState, type ChangeEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Product } from "./db";
 import { optimizeLocalLogo } from "./imageUtils";
@@ -23,6 +23,22 @@ function ProductAssignmentPicker({
   onSearchTermChange,
   onSelectionChange,
 }: ProductAssignmentPickerProps) {
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, number[]>();
+
+    products.forEach((product) => {
+      if (!product.id) {
+        return;
+      }
+
+      const category = product.category.trim() || "Sin categoría";
+      groups.set(category, [...(groups.get(category) ?? []), product.id]);
+    });
+
+    return Array.from(groups.entries())
+      .map(([category, productIds]) => ({ category, productIds }))
+      .sort((a, b) => a.category.localeCompare(b.category, "es", { sensitivity: "base" }));
+  }, [products]);
   const normalizedSearch = searchTerm.trim().toLocaleLowerCase("es");
   const visibleProducts = products.filter((product) =>
     !normalizedSearch ||
@@ -41,9 +57,78 @@ function ProductAssignmentPicker({
     onSelectionChange(nextSelection);
   };
 
+  const toggleCategory = (categoryProductIds: number[]) => {
+    const nextSelection = new Set(selectedProductIds);
+    const isCompleteCategorySelected = categoryProductIds.every((productId) =>
+      nextSelection.has(productId),
+    );
+
+    categoryProductIds.forEach((productId) => {
+      if (isCompleteCategorySelected) {
+        nextSelection.delete(productId);
+      } else {
+        nextSelection.add(productId);
+      }
+    });
+
+    onSelectionChange(nextSelection);
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/70">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+              Seleccionar por categoría
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Toca una categoría para marcar todos sus productos de una vez.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectionChange(new Set())}
+            disabled={selectedProductIds.size === 0}
+            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+          >
+            Desmarcar todo
+          </button>
+        </div>
+
+        <div className="mt-3 flex max-h-36 flex-wrap gap-2 overflow-y-auto pr-1">
+          {categoryGroups.map(({ category, productIds }) => {
+            const selectedCount = productIds.filter((productId) =>
+              selectedProductIds.has(productId),
+            ).length;
+            const isFullySelected = selectedCount === productIds.length;
+            const isPartiallySelected = selectedCount > 0 && !isFullySelected;
+
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => toggleCategory(productIds)}
+                aria-pressed={isFullySelected}
+                className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${
+                  isFullySelected
+                    ? "border-blue-500 bg-blue-600 text-white shadow-sm"
+                    : isPartiallySelected
+                      ? "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                }`}
+              >
+                <span className="block">{category}</span>
+                <span className={`mt-0.5 block text-[10px] ${isFullySelected ? "text-blue-100" : "opacity-70"}`}>
+                  {selectedCount}/{productIds.length} productos
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="text"
           value={searchTerm}
