@@ -9,6 +9,7 @@ import {
   formatQuantity,
   getQuantityStep,
   getStockUnitLabel,
+  isQuickSaleProduct,
   roundQuantity,
 } from "./saleUtils";
 import { showToast } from "./Toast";
@@ -33,6 +34,7 @@ export function ProductSaleConfigurator({
   const [unitQuantityInput, setUnitQuantityInput] = useState("1");
   const [variableUnit, setVariableUnit] = useState<StockUnit>("unit");
   const [lastEditedWeightField, setLastEditedWeightField] = useState<WeightInputMode>("quantity");
+  const isQuickSale = isQuickSaleProduct(product);
 
   const quantityStep = getQuantityStep(product.saleType === "variable" ? variableUnit : product.stockUnit);
 
@@ -98,7 +100,7 @@ export function ProductSaleConfigurator({
         quantity: 1,
         category: product.category,
         saleType: "variable",
-        stockUnit: variableUnit,
+        stockUnit: isQuickSale ? "unit" : variableUnit,
         step: 1,
       });
       setAmountInput("");
@@ -189,7 +191,7 @@ export function ProductSaleConfigurator({
               autoFocus
             />
           </div>
-          <div className="space-y-1.5">
+          {!isQuickSale && <div className="space-y-1.5">
             <label htmlFor={`variable-unit-${product.id}`} className={labelClassName}>
               Tipo
             </label>
@@ -203,7 +205,7 @@ export function ProductSaleConfigurator({
               <option value="unit">Unidad</option>
               <option value="liter">Litro</option>
             </select>
-          </div>
+          </div>}
         </div>
       ) : product.saleType === "weight" ? (
         <div className="space-y-2.5">
@@ -282,7 +284,11 @@ export function ProductSaleConfigurator({
             compact ? "mt-1.5" : "mt-2"
           }`}
         >
-          <span>{product.saleType === "variable" ? "Tipo" : "Cantidad"}: {quantityPreview}</span>
+          <span>
+            {isQuickSale
+              ? "Venta rápida"
+              : `${product.saleType === "variable" ? "Tipo" : "Cantidad"}: ${quantityPreview}`}
+          </span>
           {product.saleType !== "variable" && (
             <span>Stock: {formatQuantity(remainingStock, product.stockUnit)}</span>
           )}

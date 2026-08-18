@@ -1,5 +1,19 @@
 import type { CartItem, Product, SaleType, StockUnit } from "./db";
 
+export const QUICK_SALE_PRODUCT_NAME = "Venta rápida";
+export const QUICK_SALE_PRODUCT_CATEGORY = "Venta rápida";
+export const QUICK_SALE_PRODUCT_SLUG = "venta-rapida";
+
+export function isQuickSaleProduct(
+  product: Pick<Product, "saleType" | "slug"> | null | undefined,
+) {
+  return Boolean(
+    product?.saleType === "variable" &&
+      (product.slug === QUICK_SALE_PRODUCT_SLUG ||
+        product.slug.startsWith(`${QUICK_SALE_PRODUCT_SLUG}-`)),
+  );
+}
+
 export function getQuantityStep(stockUnit: StockUnit) {
   return stockUnit === "unit" ? 1 : 0.25;
 }
@@ -19,7 +33,13 @@ export function formatQuantity(value: number, stockUnit: StockUnit) {
   return `${Math.round(value).toLocaleString("es-AR")} un`;
 }
 
-export function formatPriceLabel(product: Pick<Product, "price" | "saleType" | "stockUnit">) {
+export function formatPriceLabel(
+  product: Pick<Product, "price" | "saleType" | "stockUnit" | "slug">,
+) {
+  if (isQuickSaleProduct(product)) {
+    return "Ingresar importe";
+  }
+
   if (product.saleType === "variable") {
     return "Importe libre";
   }

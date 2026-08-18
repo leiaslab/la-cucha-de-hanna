@@ -9,6 +9,12 @@ import {
   saveProductRemote,
 } from "./src/lib/api-client";
 import { optimizeProductImage } from "./imageUtils";
+import {
+  isQuickSaleProduct,
+  QUICK_SALE_PRODUCT_CATEGORY,
+  QUICK_SALE_PRODUCT_NAME,
+  QUICK_SALE_PRODUCT_SLUG,
+} from "./saleUtils";
 
 type SaleMode = "unit" | "kg" | "liter" | "variable";
 
@@ -116,6 +122,7 @@ export function ProductFormModal({
   const [imageUrl] = useState(productToEdit?.imageUrl ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [description, setDescription] = useState(productToEdit?.description ?? "");
+  const [isQuickSale, setIsQuickSale] = useState(() => isQuickSaleProduct(productToEdit));
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const availableLocales = useLiveQuery(() => db.locals.toArray());
@@ -195,11 +202,11 @@ export function ProductFormModal({
     setError(null);
 
     const trimmedCode = code.trim();
-    const trimmedName = name.trim();
-    const trimmedCategory = category.trim();
+    const trimmedName = isQuickSale ? QUICK_SALE_PRODUCT_NAME : name.trim();
+    const trimmedCategory = isQuickSale ? QUICK_SALE_PRODUCT_CATEGORY : category.trim();
     const trimmedSubcategory = subcategory.trim();
-    const trimmedDescription = description.trim();
-    const trimmedImageUrl = imageUrl.trim();
+    const trimmedDescription = isQuickSale ? "" : description.trim();
+    const trimmedImageUrl = isQuickSale ? "" : imageUrl.trim();
     const isVariableProduct = saleType === "variable";
     const parsedPrice = isVariableProduct ? 0 : Number(price);
     const parsedCost = isVariableProduct ? 0 : Number(cost);
@@ -248,8 +255,10 @@ export function ProductFormModal({
 
     try {
       setIsSaving(true);
-      let nextImageUrl = trimmedImageUrl || productToEdit?.imageUrl || undefined;
-      if (imageFile) {
+      let nextImageUrl = isQuickSale
+        ? undefined
+        : trimmedImageUrl || productToEdit?.imageUrl || undefined;
+      if (!isQuickSale && imageFile) {
         nextImageUrl = await optimizeProductImage(imageFile);
       }
 
@@ -259,9 +268,11 @@ export function ProductFormModal({
         normalizedLocalStocks[0];
 
       const productData = {
-        code: trimmedCode || undefined,
+        code: isQuickSale ? undefined : trimmedCode || undefined,
         name: trimmedName,
-        slug: generateSlug(trimmedName),
+        slug: isQuickSale
+          ? productToEdit?.slug ?? `${QUICK_SALE_PRODUCT_SLUG}-${preferredLocalStock?.localId ?? "general"}`
+          : generateSlug(trimmedName),
         price: parsedPrice,
         cost: parsedCost,
         stock: preferredLocalStock?.stock ?? 0,
@@ -270,7 +281,7 @@ export function ProductFormModal({
           ? 0
           : preferredLocalStock?.lowStockAlertThreshold ?? 5,
         category: trimmedCategory,
-        subcategory: trimmedSubcategory || undefined,
+        subcategory: isQuickSale ? undefined : trimmedSubcategory || undefined,
         saleType,
         stockUnit: normalizedStockUnit,
         imageUrl: nextImageUrl,
@@ -361,7 +372,54 @@ export function ProductFormModal({
           <div className="space-y-4">
             {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
-            {previewUrl && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-800">¿Qué querés crear?</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQuickSale(false);
+                    if (saleType === "variable" && isQuickSale) {
+                      setSaleType("fixed");
+                    }
+                  }}
+                  className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                    !isQuickSale
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Producto normal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQuickSale(true);
+                    setSaleType("variable");
+                    setStockUnit("unit");
+                  }}
+                  className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                    isQuickSale
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Venta rápida
+                </button>
+              </div>
+            </div>
+
+            {isQuickSale && (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-900">
+                <p className="font-bold">Lista para cobrar importes libres</p>
+                <p className="mt-1 text-blue-800">
+                  No hace falta completar nombre, precio, costo, categoría, imagen ni stock. Al vender,
+                  solo se pedirá el importe y después se cobra con el medio de pago habitual.
+                </p>
+              </div>
+            )}
+
+            {!isQuickSale && previewUrl && (
               <div>
                 <span className="mb-2 block text-sm font-medium text-slate-700">Vista previa</span>
                 <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-slate-50 sm:h-44">
@@ -375,7 +433,7 @@ export function ProductFormModal({
               </div>
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            {!isQuickSale && <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="code" className="block text-sm font-medium text-slate-700">
                   Codigo del producto <span className="text-slate-400">(opcional)</span>
@@ -803,7 +861,7 @@ export function ProductFormModal({
                   className="mt-1 block w-full rounded-xl border border-slate-300 p-3 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
-            </div>
+            </div>}
           </div>
 
           <div className="sticky bottom-0 mt-6 flex justify-end gap-3 border-t border-slate-100 bg-white pt-4">
@@ -822,7 +880,9 @@ export function ProductFormModal({
             >
               {isSaving
                 ? "Guardando..."
-                : `${productToEdit ? "Actualizar" : "Agregar"} Producto`}
+                : isQuickSale
+                  ? `${productToEdit ? "Actualizar" : "Crear"} Venta rápida`
+                  : `${productToEdit ? "Actualizar" : "Agregar"} Producto`}
             </button>
           </div>
         </form>

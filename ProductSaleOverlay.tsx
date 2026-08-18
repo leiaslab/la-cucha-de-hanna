@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { type Product } from "./db";
 import { ProductSaleConfigurator } from "./ProductSaleConfigurator";
-import { formatPriceLabel, formatQuantity } from "./saleUtils";
+import { formatPriceLabel, formatQuantity, isQuickSaleProduct } from "./saleUtils";
 
 interface ProductSaleOverlayProps {
   canManageProducts?: boolean;
@@ -26,6 +26,7 @@ export function ProductSaleOverlay({
     [product.imageBlob],
   );
   const displayUrl = blobUrl || product.imageUrl;
+  const isQuickSale = isQuickSaleProduct(product);
   const globalStock = product.globalStock ?? product.stock;
   const visibleLocalStocks =
     product.localStocks
@@ -42,6 +43,69 @@ export function ProductSaleOverlay({
       }
     };
   }, [blobUrl]);
+
+  if (isQuickSale) {
+    return (
+      <div
+        className="fixed inset-0 z-[80] flex min-h-screen items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          className="w-full max-w-md rounded-[2rem] bg-white p-5 shadow-[0_28px_80px_rgba(15,23,42,0.35)] sm:p-6"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">
+                Venta rápida
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-slate-900">Ingresá el importe</h2>
+              <p className="mt-1 text-sm text-slate-500">Después podrás elegir el medio de pago habitual.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cerrar
+            </button>
+          </div>
+
+          <ProductSaleConfigurator product={product} onCancel={onClose} onAdded={onClose} />
+
+          {canManageProducts && (
+            <div className="mt-4 flex justify-center gap-3 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => onEdit(product)}
+                className="text-sm font-semibold text-blue-700 hover:text-blue-800"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (product.id && confirm("¿Eliminar la Venta rápida?")) {
+                    try {
+                      setIsDeleting(true);
+                      await onDelete(product.id);
+                      onClose();
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }
+                }}
+                className="text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+              >
+                {isDeleting ? "Borrando..." : "Eliminar"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

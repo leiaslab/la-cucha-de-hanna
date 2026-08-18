@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo } from "react";
 import { type Product } from "./db";
-import { formatPriceLabel, formatQuantity } from "./saleUtils";
+import { formatPriceLabel, formatQuantity, isQuickSaleProduct } from "./saleUtils";
 
 interface ProductCardProps {
   canManageProducts?: boolean;
@@ -45,6 +45,7 @@ export const ProductCard = memo(function ProductCard({
     ? product.globalLowStockAlertThreshold ?? product.lowStockAlertThreshold ?? 5
     : product.lowStockAlertThreshold ?? 5;
   const isVariableProduct = product.saleType === "variable";
+  const isQuickSale = isQuickSaleProduct(product);
   const isLowStock = !isVariableProduct && displayedStock > 0 && displayedStock <= lowStockThreshold;
   const nameFontSize = getAdaptiveFontSize(product.name, isKioskMode ? 13.5 : 11.5, isKioskMode ? 9.5 : 8.5, 0.12);
   const priceFontSize = getAdaptiveFontSize(priceLabel, isKioskMode ? 15.5 : 13.5, isKioskMode ? 11.5 : 10, 0.1);
@@ -98,10 +99,10 @@ export const ProductCard = memo(function ProductCard({
           title={isVariableProduct ? "Producto sin control de stock" : canManageProducts ? "Stock global" : "Stock del local"}
         >
           <span className={`${isKioskMode ? "text-[9px]" : "text-[8px]"} uppercase tracking-[0.18em] text-white/80`}>
-            {isVariableProduct ? "Venta" : "Stock"}
+            {isQuickSale ? "Cobro" : isVariableProduct ? "Venta" : "Stock"}
           </span>
           <span className={`${isKioskMode ? "text-[11px]" : "text-[10px]"} font-black leading-none`}>
-            {isVariableProduct ? "Sin control" : displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
+            {isQuickSale ? "Rápido" : isVariableProduct ? "Sin control" : displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
           </span>
         </div>
 
@@ -115,7 +116,11 @@ export const ProductCard = memo(function ProductCard({
               isKioskMode ? "h-[8.8rem] w-[8.8rem]" : "h-[9.45rem] w-[9.45rem]"
             }`}
           >
-            {displayUrl ? (
+            {isQuickSale ? (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-5xl font-black text-white shadow-lg">
+                $
+              </div>
+            ) : displayUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={displayUrl}
