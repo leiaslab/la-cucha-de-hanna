@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
-import { ElectronicsCheckoutDialog } from "./ElectronicsCheckoutDialog";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog } from "./PaymentMethodDialog";
 import { formatQuantity, getLineTotal, getQuantityStep, getStockUnitLabel, roundQuantity } from "./saleUtils";
@@ -26,7 +25,6 @@ export function CartSidebar({
   onToggleTheme,
 }: CartSidebarProps) {
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [isElectronicsDialogOpen, setIsElectronicsDialogOpen] = useState(false);
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const checkoutInProgressRef = useRef(false);
@@ -140,18 +138,6 @@ export function CartSidebar({
       return;
     }
 
-    const isElectronicsOnly = cartItems.every(
-      (item) =>
-        item.saleType === "fixed" &&
-        item.stockUnit === "unit" &&
-        ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
-    );
-
-    if (isElectronicsOnly) {
-      setIsElectronicsDialogOpen(true);
-      return;
-    }
-
     setIsPaymentDialogOpen(true);
   }, [cartItems, hasOpenShift]);
 
@@ -181,7 +167,7 @@ export function CartSidebar({
 
     window.addEventListener("keydown", handleKeyboardCheckout);
     return () => window.removeEventListener("keydown", handleKeyboardCheckout);
-  }, [cartItems, hasOpenShift, isElectronicsDialogOpen, isPaymentDialogOpen, openCheckoutFlow]);
+  }, [cartItems, hasOpenShift, isPaymentDialogOpen, openCheckoutFlow]);
 
   return (
     <>
@@ -402,27 +388,6 @@ export function CartSidebar({
           }
         }}
         onSelect={(paymentMethod) => void handleCheckout(paymentMethod)}
-      />
-      <ElectronicsCheckoutDialog
-        isOpen={isElectronicsDialogOpen}
-        cartItems={cartItems ?? []}
-        total={total}
-        clientId={selectedClientId}
-        onClose={() => setIsElectronicsDialogOpen(false)}
-        onCash={() => {
-          setIsElectronicsDialogOpen(false);
-          setIsPaymentDialogOpen(true);
-        }}
-        onReserved={(plan) => {
-          setIsElectronicsDialogOpen(false);
-          setSelectedClientId(null);
-          showToast(
-            plan.status === "paid"
-              ? `Reserva #${plan.id} pagada. Ya esta lista para entregar.`
-              : `Plan de reserva #${plan.id} creado.`,
-            "success",
-          );
-        }}
       />
     </>
   );

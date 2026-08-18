@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type Order, type SessionUser } from "./db";
 import { ClientSelector } from "./ClientSelector";
-import { ElectronicsCheckoutDialog } from "./ElectronicsCheckoutDialog";
 import { finalizeLocalOrder } from "./checkoutUtils";
 import { PaymentMethodDialog, getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { formatQuantity, formatSaleItemQuantity, getLineTotal, getQuantityStep, getStockUnitLabel, roundQuantity } from "./saleUtils";
@@ -22,7 +21,6 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [isElectronicsDialogOpen, setIsElectronicsDialogOpen] = useState(false);
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const checkoutInProgressRef = useRef(false);
   const activeShift = useLiveQuery(async () => {
@@ -159,18 +157,6 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
 
   const openCheckoutFlow = () => {
     if (!cartItems?.length || !hasOpenShift) {
-      return;
-    }
-
-    const isElectronicsOnly = cartItems.every(
-      (item) =>
-        item.saleType === "fixed" &&
-        item.stockUnit === "unit" &&
-        ["electronica", "electrónica"].includes(item.category.trim().toLocaleLowerCase("es")),
-    );
-
-    if (isElectronicsOnly) {
-      setIsElectronicsDialogOpen(true);
       return;
     }
 
@@ -409,29 +395,6 @@ export function CartModal({ currentUser, isOpen, onClose }: CartModalProps) {
           }
         }}
         onSelect={(paymentMethod) => void handleCheckout(paymentMethod)}
-      />
-      <ElectronicsCheckoutDialog
-        isOpen={isElectronicsDialogOpen}
-        cartItems={cartItems ?? []}
-        total={total}
-        clientId={selectedClientId}
-        notes={notes}
-        onClose={() => setIsElectronicsDialogOpen(false)}
-        onCash={() => {
-          setIsElectronicsDialogOpen(false);
-          setIsPaymentDialogOpen(true);
-        }}
-        onReserved={(plan) => {
-          setNotes("");
-          setSelectedClientId(null);
-          setIsElectronicsDialogOpen(false);
-          showToast(
-            plan.status === "paid"
-              ? `Reserva #${plan.id} pagada. Ya esta lista para entregar.`
-              : `Plan de reserva #${plan.id} creado.`,
-            "success",
-          );
-        }}
       />
     </div>
   );

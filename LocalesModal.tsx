@@ -23,29 +23,34 @@ function ProductAssignmentPicker({
   onSearchTermChange,
   onSelectionChange,
 }: ProductAssignmentPickerProps) {
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase("es");
+  const visibleProducts = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          !normalizedSearch ||
+          product.name.toLocaleLowerCase("es").includes(normalizedSearch) ||
+          product.code?.toLocaleLowerCase("es").includes(normalizedSearch) ||
+          product.category.toLocaleLowerCase("es").includes(normalizedSearch),
+      ),
+    [normalizedSearch, products],
+  );
   const categoryGroups = useMemo(() => {
-    const groups = new Map<string, number[]>();
+    const groups = new Map<string, Product[]>();
 
-    products.forEach((product) => {
+    visibleProducts.forEach((product) => {
       if (!product.id) {
         return;
       }
 
       const category = product.category.trim() || "Sin categoría";
-      groups.set(category, [...(groups.get(category) ?? []), product.id]);
+      groups.set(category, [...(groups.get(category) ?? []), product]);
     });
 
     return Array.from(groups.entries())
-      .map(([category, productIds]) => ({ category, productIds }))
+      .map(([category, categoryProducts]) => ({ category, categoryProducts }))
       .sort((a, b) => a.category.localeCompare(b.category, "es", { sensitivity: "base" }));
-  }, [products]);
-  const normalizedSearch = searchTerm.trim().toLocaleLowerCase("es");
-  const visibleProducts = products.filter((product) =>
-    !normalizedSearch ||
-    product.name.toLocaleLowerCase("es").includes(normalizedSearch) ||
-    product.code?.toLocaleLowerCase("es").includes(normalizedSearch) ||
-    product.category.toLocaleLowerCase("es").includes(normalizedSearch),
-  );
+  }, [visibleProducts]);
 
   const toggleProduct = (productId: number) => {
     const nextSelection = new Set(selectedProductIds);
@@ -76,59 +81,7 @@ function ProductAssignmentPicker({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900/70">
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-              Seleccionar por categoría
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Toca una categoría para marcar todos sus productos de una vez.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onSelectionChange(new Set())}
-            disabled={selectedProductIds.size === 0}
-            className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-          >
-            Desmarcar todo
-          </button>
-        </div>
-
-        <div className="mt-3 flex max-h-36 flex-wrap gap-2 overflow-y-auto pr-1">
-          {categoryGroups.map(({ category, productIds }) => {
-            const selectedCount = productIds.filter((productId) =>
-              selectedProductIds.has(productId),
-            ).length;
-            const isFullySelected = selectedCount === productIds.length;
-            const isPartiallySelected = selectedCount > 0 && !isFullySelected;
-
-            return (
-              <button
-                key={category}
-                type="button"
-                onClick={() => toggleCategory(productIds)}
-                aria-pressed={isFullySelected}
-                className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${
-                  isFullySelected
-                    ? "border-blue-500 bg-blue-600 text-white shadow-sm"
-                    : isPartiallySelected
-                      ? "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                }`}
-              >
-                <span className="block">{category}</span>
-                <span className={`mt-0.5 block text-[10px] ${isFullySelected ? "text-blue-100" : "opacity-70"}`}>
-                  {selectedCount}/{productIds.length} productos
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="text"
           value={searchTerm}
@@ -171,41 +124,91 @@ function ProductAssignmentPicker({
         <span>{visibleProducts.length} visibles</span>
       </div>
 
-      <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-        {visibleProducts.length === 0 ? (
-          <p className="col-span-full rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+      <div className="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+        {categoryGroups.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             No se encontraron productos.
           </p>
         ) : (
-          visibleProducts.map((product) => {
-            if (!product.id) {
-              return null;
-            }
+          categoryGroups.map(({ category, categoryProducts }) => {
+            const categoryProductIds = categoryProducts.flatMap((product) =>
+              product.id ? [product.id] : [],
+            );
+            const selectedCount = categoryProductIds.filter((productId) =>
+              selectedProductIds.has(productId),
+            ).length;
+            const isFullySelected = selectedCount === categoryProductIds.length;
 
             return (
-              <label
-                key={product.id}
-                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm transition ${
-                  selectedProductIds.has(product.id)
-                    ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30"
-                    : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-                }`}
+              <details
+                key={category}
+                open={normalizedSearch ? true : undefined}
+                className="group overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
               >
-                <input
-                  type="checkbox"
-                  checked={selectedProductIds.has(product.id)}
-                  onChange={() => toggleProduct(product.id!)}
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
-                    {product.name}
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-50 px-3 py-3 marker:content-none dark:bg-slate-800/70">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {category}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {selectedCount}/{categoryProductIds.length} productos seleccionados
+                    </p>
+                  </div>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition group-open:rotate-180 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                    ▼
                   </span>
-                  <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                    {product.category}{product.code ? ` · Cod. ${product.code}` : ""}
-                  </span>
-                </span>
-              </label>
+                </summary>
+
+                <div className="border-t border-slate-200 p-3 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(categoryProductIds)}
+                    className={`mb-3 rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                      isFullySelected
+                        ? "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                        : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300"
+                    }`}
+                  >
+                    {isFullySelected ? "Desmarcar toda la categoría" : "Marcar toda la categoría"}
+                  </button>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {categoryProducts.map((product) => {
+                      if (!product.id) {
+                        return null;
+                      }
+
+                      return (
+                        <label
+                          key={product.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm transition ${
+                            selectedProductIds.has(product.id)
+                              ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30"
+                              : "border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedProductIds.has(product.id)}
+                            onChange={() => toggleProduct(product.id!)}
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
+                              {product.name}
+                            </span>
+                            {product.code && (
+                              <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                                Cod. {product.code}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </details>
             );
           })
         )}

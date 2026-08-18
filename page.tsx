@@ -18,7 +18,6 @@ import { ThermalPrinterModal } from "./ThermalPrinterModal";
 import { UsersModal } from "./UsersModal";
 import { LocalesModal } from "./LocalesModal";
 import { ProductLocalSelectorModal } from "./ProductLocalSelectorModal";
-import { ReservationPlansModal } from "./ReservationPlansModal";
 import { useAuth } from "./src/components/AuthGate";
 import { importProductsRemote, syncRemoteSnapshot } from "./src/lib/api-client";
 import { ToastContainer } from "./Toast";
@@ -129,7 +128,6 @@ export default function Home() {
   const [isLocalesModalOpen, setIsLocalesModalOpen] = useState(false);
   const [isProductLocalSelectorOpen, setIsProductLocalSelectorOpen] = useState(false);
   const [isThermalPrinterOpen, setIsThermalPrinterOpen] = useState(false);
-  const [isReservationPlansOpen, setIsReservationPlansOpen] = useState(false);
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [isThemeLoaded, setIsThemeLoaded] = useState(false);
@@ -537,12 +535,6 @@ export default function Home() {
                             Turno
                           </button>
                           <button
-                            onClick={() => handleMenuAction(() => setIsReservationPlansOpen(true))}
-                            className="touch-target rounded-xl px-3 py-2 text-left text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/40"
-                          >
-                            Planes de reserva
-                          </button>
-                          <button
                             onClick={() => handleMenuAction(handleToggleKioskMode)}
                             disabled={isKioskForcedByQuery}
                             className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-100 dark:hover:bg-slate-800"
@@ -761,12 +753,6 @@ export default function Home() {
         />
       )}
 
-      {isReservationPlansOpen && (
-        <ReservationPlansModal
-          isOpen={isReservationPlansOpen}
-          onClose={() => setIsReservationPlansOpen(false)}
-        />
-      )}
     </main>
   );
 }
