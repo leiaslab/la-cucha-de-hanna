@@ -359,9 +359,9 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/55 p-4 backdrop-blur-sm sm:py-6">
-      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100vh-3rem)]">
-        <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-slate-900/55 p-4 backdrop-blur-sm sm:py-6">
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900 sm:max-h-[calc(100vh-3rem)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-5 dark:border-slate-800">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
               Locales
@@ -379,7 +379,8 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
           </button>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+        <div className="min-h-0 flex flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-6 py-5 [scrollbar-gutter:stable]">
+          <div className="order-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Nuevo local</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Elige solamente los productos que realmente existen en este local. Si no marcas ninguno, empieza vacio.
@@ -452,7 +453,20 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
           )}
         </div>
 
-        <div className="mt-5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="order-1 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Locales existentes
+              </p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Edita el nombre, los productos y la configuracion de cada local.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+              {(availableLocales ?? []).length} locales
+            </span>
+          </div>
           {(availableLocales ?? []).length === 0 ? (
             <p className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
               Todavia no hay locales cargados.
@@ -670,6 +684,7 @@ export function LocalesModal({ isOpen, onClose, onLocalCreated }: LocalesModalPr
               })}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
