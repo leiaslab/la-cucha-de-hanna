@@ -29,6 +29,7 @@ export function ProductSaleOverlay({
   );
   const displayUrl = blobUrl || product.imageUrl;
   const isQuickSale = isQuickSaleProduct(product);
+  const isFreePriceSale = isQuickSale || !stockControlEnabled;
   const globalStock = product.globalStock ?? product.stock;
   const visibleLocalStocks =
     product.localStocks
@@ -46,7 +47,7 @@ export function ProductSaleOverlay({
     };
   }, [blobUrl]);
 
-  if (isQuickSale) {
+  if (isFreePriceSale) {
     return (
       <div
         className="fixed inset-0 z-[80] flex min-h-screen items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -59,10 +60,16 @@ export function ProductSaleOverlay({
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">
-                Venta rápida
+                {isQuickSale ? "Venta rápida" : "Venta sin control de stock"}
               </p>
-              <h2 className="mt-1 text-2xl font-black text-slate-900">Ingresá el importe</h2>
-              <p className="mt-1 text-sm text-slate-500">Después podrás elegir el medio de pago habitual.</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-900">
+                {isQuickSale ? "Ingresá el importe" : product.name}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {isQuickSale
+                  ? "Después podrás elegir el medio de pago habitual."
+                  : `Precio de referencia: ${formatPriceLabel(product)}. Ingresá el importe que vas a cobrar.`}
+              </p>
             </div>
             <button
               type="button"
@@ -73,7 +80,13 @@ export function ProductSaleOverlay({
             </button>
           </div>
 
-          <ProductSaleConfigurator product={product} stockControlEnabled={stockControlEnabled} onCancel={onClose} onAdded={onClose} />
+          <ProductSaleConfigurator
+            product={product}
+            stockControlEnabled={stockControlEnabled}
+            freePriceMode={!stockControlEnabled}
+            onCancel={onClose}
+            onAdded={onClose}
+          />
 
           {canManageProducts && (
             <div className="mt-4 flex justify-center gap-3 border-t border-slate-100 pt-4">
@@ -88,7 +101,7 @@ export function ProductSaleOverlay({
                 type="button"
                 disabled={isDeleting}
                 onClick={async () => {
-                  if (product.id && confirm("¿Eliminar la Venta rápida?")) {
+                  if (product.id && confirm(`¿Eliminar "${product.name}"?`)) {
                     try {
                       setIsDeleting(true);
                       await onDelete(product.id);

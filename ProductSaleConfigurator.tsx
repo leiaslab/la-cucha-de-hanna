@@ -19,6 +19,7 @@ type WeightInputMode = "quantity" | "amount";
 interface ProductSaleConfiguratorProps {
   product: Product;
   stockControlEnabled?: boolean;
+  freePriceMode?: boolean;
   compact?: boolean;
   onCancel?: () => void;
   onAdded?: () => void;
@@ -27,6 +28,7 @@ interface ProductSaleConfiguratorProps {
 export function ProductSaleConfigurator({
   product,
   stockControlEnabled = true,
+  freePriceMode = false,
   compact = false,
   onCancel,
   onAdded,
@@ -37,6 +39,7 @@ export function ProductSaleConfigurator({
   const [variableUnit, setVariableUnit] = useState<StockUnit>("unit");
   const [lastEditedWeightField, setLastEditedWeightField] = useState<WeightInputMode>("quantity");
   const isQuickSale = isQuickSaleProduct(product);
+  const usesFreePrice = freePriceMode || product.saleType === "variable";
 
   const quantityStep = getQuantityStep(product.saleType === "variable" ? variableUnit : product.stockUnit);
 
@@ -60,9 +63,9 @@ export function ProductSaleConfigurator({
 
   const fixedQuantity = Math.max(0, Math.floor(Number(unitQuantityInput || 0)));
   const selectedQuantity =
-    product.saleType === "variable" ? 1 : product.saleType === "weight" ? weightSale.quantity : fixedQuantity;
+    usesFreePrice ? 1 : product.saleType === "weight" ? weightSale.quantity : fixedQuantity;
   const selectedTotal =
-    product.saleType === "variable"
+    usesFreePrice
       ? roundQuantity(Number(amountInput || 0))
       : product.saleType === "weight"
       ? weightSale.total
@@ -86,7 +89,7 @@ export function ProductSaleConfigurator({
   const remainingStock = Math.max(0, roundQuantity(product.stock - selectedQuantity));
   const canAddToCart =
     selectedQuantity > 0 && selectedTotal > 0 &&
-    (!stockControlEnabled || product.saleType === "variable" || canSellQuantity(product.stock, selectedQuantity, product.stockUnit));
+    (!stockControlEnabled || usesFreePrice || canSellQuantity(product.stock, selectedQuantity, product.stockUnit));
 
   const handleAddToCart = async () => {
     if (!product.id || !canAddToCart) {
@@ -94,7 +97,7 @@ export function ProductSaleConfigurator({
       return;
     }
 
-    if (product.saleType === "variable") {
+    if (usesFreePrice) {
       await db.cart.add({
         productId: product.id,
         name: product.name,
@@ -102,12 +105,12 @@ export function ProductSaleConfigurator({
         quantity: 1,
         category: product.category,
         saleType: "variable",
-        stockUnit: isQuickSale ? "unit" : variableUnit,
+        stockUnit: freePriceMode || isQuickSale ? "unit" : variableUnit,
         step: 1,
       });
       setAmountInput("");
       setVariableUnit("unit");
-      showToast("Producto agregado al carrito.", "success");
+      showToast(`${product.name} agregado al carrito.`, "success");
       onAdded?.();
       return;
     }
@@ -165,8 +168,10 @@ export function ProductSaleConfigurator({
     : "text-4xl font-black tracking-tight text-slate-900";
 
   const quantityPreview =
-    product.saleType === "variable"
-      ? getStockUnitLabel(variableUnit)
+    usesFreePrice
+      ? freePriceMode
+        ? "Importe ingresado"
+        : getStockUnitLabel(variableUnit)
       : product.saleType === "weight"
       ? formatQuantity(selectedQuantity, product.stockUnit)
       : `${Math.round(selectedQuantity || 0).toLocaleString("es-AR")} un`;
@@ -174,7 +179,7 @@ export function ProductSaleConfigurator({
 
   return (
     <form className={wrapperClassName} onClick={(event) => event.stopPropagation()} onSubmit={handleSubmit}>
-      {product.saleType === "variable" ? (
+      {usesFreePrice ? (
         <div className="space-y-2.5">
           <div className="space-y-1.5">
             <label htmlFor={`variable-amount-${product.id}`} className={labelClassName}>
@@ -193,7 +198,7 @@ export function ProductSaleConfigurator({
               autoFocus
             />
           </div>
-          {!isQuickSale && <div className="space-y-1.5">
+          {!freePriceMode && !isQuickSale && <div className="space-y-1.5">
             <label htmlFor={`variable-unit-${product.id}`} className={labelClassName}>
               Tipo
             </label>
@@ -287,17 +292,19 @@ export function ProductSaleConfigurator({
           }`}
         >
           <span>
-            {isQuickSale
-              ? "Venta rápida"
+            {freePriceMode
+              ? `${product.name} · sin movimiento de stock`
+              : isQuickSale
+                ? "Venta rápida"
               : `${product.saleType === "variable" ? "Tipo" : "Cantidad"}: ${quantityPreview}`}
           </span>
-          {stockControlEnabled && product.saleType !== "variable" && (
+          {stockControlEnabled && !usesFreePrice && (
             <span>Stock: {formatQuantity(remainingStock, product.stockUnit)}</span>
           )}
         </div>
       </div>
 
-      {stockControlEnabled && product.saleType !== "variable" && !canAddToCart && selectedQuantity > 0 && (
+      {stockControlEnabled && !usesFreePrice && !canAddToCart && selectedQuantity > 0 && (
         <p className="text-xs font-medium text-red-600">
           La cantidad elegida supera el stock disponible.
         </p>

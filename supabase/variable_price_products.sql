@@ -94,7 +94,17 @@ begin
       raise exception 'No existe el producto ID %', v_product_id;
     end if;
 
-    if v_product.sale_type = 'variable' then
+    if not v_stock_control_enabled then
+      v_quantity := 1;
+      v_item_price := coalesce((v_item ->> 'price')::double precision, 0);
+      v_item_stock_unit := 'unit';
+
+      if v_item_price <= 0
+        or v_item_price > 1000000000000
+        or v_item_price::text in ('NaN', 'Infinity', '-Infinity') then
+        raise exception 'El importe de la venta debe ser mayor que cero.';
+      end if;
+    elsif v_product.sale_type = 'variable' then
       v_quantity := 1;
       v_item_price := coalesce((v_item ->> 'price')::double precision, 0);
       v_item_stock_unit := coalesce(v_item ->> 'stock_unit', 'unit');
@@ -156,9 +166,9 @@ begin
       v_item_price,
       v_quantity,
       v_product.category,
-      v_product.sale_type,
+      case when not v_stock_control_enabled then 'variable' else v_product.sale_type end,
       v_item_stock_unit,
-      case when v_product.sale_type = 'variable' then 1
+      case when not v_stock_control_enabled or v_product.sale_type = 'variable' then 1
         else coalesce((v_item ->> 'step')::double precision, 1)
       end
     );
