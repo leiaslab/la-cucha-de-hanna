@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       password?: string;
       role?: string;
       username?: string;
+      canViewSalesCalendar?: boolean;
     };
 
     const fullName = body.fullName?.trim() ?? "";
@@ -80,12 +81,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Selecciona un rol valido." }, { status: 400 });
     }
 
+    if (
+      body.canViewSalesCalendar !== undefined &&
+      typeof body.canViewSalesCalendar !== "boolean"
+    ) {
+      return NextResponse.json({ error: "El permiso de calendario es invalido." }, { status: 400 });
+    }
+
     const created = await createAppUser({
       fullName,
       localeId,
       username,
       password,
       role,
+      canViewSalesCalendar: body.canViewSalesCalendar,
     });
 
     return NextResponse.json({ data: created }, { status: 201 });

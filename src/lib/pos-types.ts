@@ -108,6 +108,8 @@ export interface ShiftExpense {
   shiftId: number;
   userId?: number;
   localId?: number;
+  userFullName?: string;
+  localName?: string;
   amount: number;
   reason: string;
   createdAt: number;
@@ -120,6 +122,7 @@ export interface SessionUser {
   role: AppRole;
   localId?: number | null;
   localName?: string;
+  canViewSalesCalendar?: boolean;
   source: "database" | "fallback";
 }
 
@@ -131,6 +134,7 @@ export interface AppUser {
   isActive: boolean;
   localeId?: number;
   localeName?: string;
+  canViewSalesCalendar: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -141,6 +145,7 @@ export interface AppUserInput {
   password: string;
   role: AppRole;
   localeId: number;
+  canViewSalesCalendar?: boolean;
 }
 
 export interface AppUserUpdateInput {
@@ -150,6 +155,7 @@ export interface AppUserUpdateInput {
   role?: AppRole;
   isActive?: boolean;
   localeId?: number;
+  canViewSalesCalendar?: boolean;
 }
 
 export interface LocalCreateInput {

@@ -33,6 +33,7 @@ export function getFallbackAdminUser() {
     role: "admin" as const,
     localId: null,
     localName: "General",
+    canViewSalesCalendar: true,
     source: "fallback" as const,
   };
 }

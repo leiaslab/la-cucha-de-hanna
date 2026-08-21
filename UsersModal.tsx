@@ -23,6 +23,7 @@ const initialFormState = {
   username: "",
   password: "",
   role: "cajero" as AppRole,
+  canViewSalesCalendar: false,
 };
 
 export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps) {
@@ -30,7 +31,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [form, setForm] = useState(initialFormState);
   const [isActive, setIsActive] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingUserId, setIsDeletingUserId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,9 +53,6 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
   };
 
   const loadUsers = async () => {
-    setIsLoading(true);
-    setError(null);
-
     try {
       setUsers(await listAppUsersRemote());
     } catch (loadError) {
@@ -69,8 +67,8 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
       return;
     }
 
-    resetForm();
-    void loadUsers();
+    const timeoutId = window.setTimeout(() => void loadUsers(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [isOpen]);
 
   if (!isOpen) {
@@ -85,6 +83,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
       username: user.username,
       password: "",
       role: user.role,
+      canViewSalesCalendar: user.canViewSalesCalendar,
     });
     setIsActive(user.isActive);
     setShowPassword(false);
@@ -117,6 +116,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
           password: form.password.trim() || undefined,
           role: form.role,
           isActive,
+          canViewSalesCalendar: form.canViewSalesCalendar,
         });
         setUsers((current) =>
           sortUsers(current.map((candidate) => (candidate.id === updatedUser.id ? updatedUser : candidate))),
@@ -129,6 +129,7 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
           username: form.username,
           password: form.password,
           role: form.role,
+          canViewSalesCalendar: form.canViewSalesCalendar,
         });
         setUsers((current) => sortUsers([...current, createdUser]));
         showToast("Usuario creado con exito.", "success");
@@ -264,6 +265,11 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                         >
                           {user.isActive ? "Activo" : "Inactivo"}
                         </span>
+                        {(user.role === "admin" || user.canViewSalesCalendar) && (
+                          <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                            Calendario habilitado
+                          </span>
+                        )}
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -418,6 +424,28 @@ export function UsersModal({ currentUsername, isOpen, onClose }: UsersModalProps
                   <option value="admin">Admin</option>
                 </select>
               </div>
+
+              {form.role === "cajero" && (
+                <label className="flex items-start gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-100">
+                  <input
+                    type="checkbox"
+                    checked={form.canViewSalesCalendar}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        canViewSalesCalendar: event.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-violet-300"
+                  />
+                  <span>
+                    <span className="block font-bold">Ver calendario de ventas</span>
+                    <span className="mt-1 block text-xs text-violet-700 dark:text-violet-300">
+                      Permite consultar el resumen mensual y las ventas y gastos de cada dia.
+                    </span>
+                  </span>
+                </label>
+              )}
 
               {editingUser && (
                 <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">

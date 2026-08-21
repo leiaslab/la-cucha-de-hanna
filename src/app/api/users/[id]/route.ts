@@ -36,6 +36,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
       password?: string;
       role?: string;
       username?: string;
+      canViewSalesCalendar?: boolean;
     };
 
     if (sessionUser.id === userId && body.isActive === false) {
@@ -44,6 +45,13 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
 
     if (body.role !== undefined && !isValidRole(body.role)) {
       return NextResponse.json({ error: "Selecciona un rol valido." }, { status: 400 });
+    }
+
+    if (
+      body.canViewSalesCalendar !== undefined &&
+      typeof body.canViewSalesCalendar !== "boolean"
+    ) {
+      return NextResponse.json({ error: "El permiso de calendario es invalido." }, { status: 400 });
     }
 
     if (body.password !== undefined && body.password.trim() !== "") {
@@ -60,6 +68,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/users/
       password: body.password,
       role: body.role,
       username: body.username,
+      canViewSalesCalendar: body.canViewSalesCalendar,
     });
 
     return NextResponse.json({ data: updated });

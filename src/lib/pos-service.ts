@@ -357,12 +357,21 @@ function mapOrderRow(
   };
 }
 
-function mapShiftExpenseRow(row: ShiftExpenseRow): ShiftExpense {
+function mapShiftExpenseRow(
+  row: ShiftExpenseRow,
+  userNamesById?: Map<number, AppUserReferenceRow>,
+  localNamesById?: Map<number, LocalRow>,
+): ShiftExpense {
+  const userReference = row.user_id ? userNamesById?.get(row.user_id) : undefined;
+  const localReference = row.local_id ? localNamesById?.get(row.local_id) : undefined;
+
   return {
     id: row.id,
     shiftId: row.shift_id,
     userId: row.user_id ?? undefined,
     localId: row.local_id ?? undefined,
+    userFullName: userReference?.full_name ?? undefined,
+    localName: localReference?.name ?? undefined,
     amount: Number(row.amount),
     reason: row.reason,
     createdAt: toMillis(row.created_at) ?? Date.now(),
@@ -432,12 +441,16 @@ function createLocalMap(rows: LocalRow[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-function createShiftExpenseMap(rows: ShiftExpenseRow[]) {
+function createShiftExpenseMap(
+  rows: ShiftExpenseRow[],
+  userNamesById?: Map<number, AppUserReferenceRow>,
+  localNamesById?: Map<number, LocalRow>,
+) {
   const expensesByShiftId = new Map<number, ShiftExpense[]>();
 
   rows.forEach((row) => {
     const current = expensesByShiftId.get(row.shift_id) ?? [];
-    current.push(mapShiftExpenseRow(row));
+    current.push(mapShiftExpenseRow(row, userNamesById, localNamesById));
     expensesByShiftId.set(row.shift_id, current);
   });
 
@@ -960,7 +973,11 @@ export async function getBootstrapSnapshot(sessionUser: SessionUser): Promise<Re
 
   const userNamesById = createUserReferenceMap(userRows as AppUserReferenceRow[]);
   const localNamesById = createLocalMap(localRows as LocalRow[]);
-  const expensesByShiftId = createShiftExpenseMap(shiftExpenses as ShiftExpenseRow[]);
+  const expensesByShiftId = createShiftExpenseMap(
+    shiftExpenses as ShiftExpenseRow[],
+    userNamesById,
+    localNamesById,
+  );
   const localStocksByProductId = createProductLocalStockMap(productLocalStocks as ProductLocalStockRow[]);
   const productIdsWithImages = new Set(
     (productImages as Array<{ id: number }>).map((product) => product.id),

@@ -13,6 +13,7 @@ type AppUserRow = {
   role: AppRole;
   is_active: boolean;
   locale_id: number | null;
+  can_view_sales_calendar: boolean;
   created_at: string;
   updated_at: string;
   locales?: { name: string } | { name: string }[] | null;
@@ -20,7 +21,7 @@ type AppUserRow = {
 
 const USERS_TABLE = "app_users";
 const PUBLIC_USER_COLUMNS =
-  "id,full_name,username,role,is_active,locale_id,created_at,updated_at,locales(name)";
+  "id,full_name,username,role,is_active,locale_id,can_view_sales_calendar,created_at,updated_at,locales(name)";
 
 export class MissingAppUsersTableError extends Error {
   constructor() {
@@ -48,6 +49,7 @@ function mapAppUser(row: AppUserRow): AppUser {
     isActive: row.is_active,
     localeId: row.locale_id ?? undefined,
     localeName: locale?.name ?? undefined,
+    canViewSalesCalendar: row.role === "admin" || row.can_view_sales_calendar,
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
   };
@@ -63,6 +65,7 @@ function mapSessionUser(row: AppUserRow): SessionUser {
     role: row.role,
     localId: row.locale_id,
     localName: locale?.name ?? undefined,
+    canViewSalesCalendar: row.role === "admin" || row.can_view_sales_calendar,
     source: "database",
   };
 }
@@ -100,7 +103,7 @@ export async function authenticateAppUser(username: string, password: string) {
   const normalizedUsername = normalizeUsername(username);
   const { data, error } = await supabase
     .from(USERS_TABLE)
-    .select("id,full_name,username,password_hash,role,is_active,locale_id,created_at,updated_at,locales(name)")
+    .select("id,full_name,username,password_hash,role,is_active,locale_id,can_view_sales_calendar,created_at,updated_at,locales(name)")
     .eq("username", normalizedUsername)
     .maybeSingle<AppUserRow>();
 
@@ -117,6 +120,26 @@ export async function authenticateAppUser(username: string, password: string) {
   }
 
   return mapSessionUser(data);
+}
+
+export async function getAppUserSessionById(userId: number) {
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from(USERS_TABLE)
+    .select(PUBLIC_USER_COLUMNS)
+    .eq("id", userId)
+    .eq("is_active", true)
+    .maybeSingle<AppUserRow>();
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      return null;
+    }
+
+    throw new Error(error.message);
+  }
+
+  return data ? mapSessionUser(data) : null;
 }
 
 export async function listAppUsers() {
@@ -146,6 +169,7 @@ export async function createAppUser(input: AppUserInput) {
     password_hash: hashPassword(input.password.trim()),
     role: input.role,
     locale_id: localeId,
+    can_view_sales_calendar: input.role === "admin" || Boolean(input.canViewSalesCalendar),
   };
 
   const { data, error } = await supabase
@@ -183,6 +207,10 @@ export async function updateAppUser(userId: number, input: AppUserUpdateInput) {
 
   if (input.isActive !== undefined) {
     payload.is_active = input.isActive;
+  }
+
+  if (input.canViewSalesCalendar !== undefined) {
+    payload.can_view_sales_calendar = input.canViewSalesCalendar;
   }
 
   if (input.localeId !== undefined) {

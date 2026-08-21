@@ -546,6 +546,17 @@ export default function Home() {
                                 ? "Desactivar modo kiosco"
                                 : "Activar modo kiosco"}
                           </button>
+                          {(user?.role === "admin" || user?.canViewSalesCalendar) && (
+                            <button
+                              onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
+                              className="touch-target flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-violet-700 transition-colors hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/40"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                                <path d="M7 2h2v2h6V2h2v2h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2Zm13 8H4v10h16V10ZM6 12h4v3H6v-3Z" />
+                              </svg>
+                              Almanaque de ventas
+                            </button>
+                          )}
                           {user?.role === "admin" && (
                             <>
                               <button
@@ -559,12 +570,6 @@ export default function Home() {
                                 className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
                               >
                                 Locales
-                              </button>
-                              <button
-                                onClick={() => handleMenuAction(() => setIsDailySalesOpen(true))}
-                                className="touch-target rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800"
-                              >
-                                Resumen del mes
                               </button>
                               <button
                                 onClick={() => handleMenuAction(() => setIsWeeklySalesOpen(true))}

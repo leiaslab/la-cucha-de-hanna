@@ -79,6 +79,7 @@ create table if not exists public.app_users (
   role text not null check (role in ('admin', 'cajero')),
   locale_id bigint references public.locales(id) on delete set null,
   is_active boolean not null default true,
+  can_view_sales_calendar boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -150,6 +151,9 @@ alter table public.ventas
 
 alter table public.app_users
   add column if not exists locale_id bigint references public.locales(id) on delete set null;
+
+alter table public.app_users
+  add column if not exists can_view_sales_calendar boolean not null default false;
 
 alter table public.arqueos
   add column if not exists local_id bigint references public.locales(id) on delete set null;

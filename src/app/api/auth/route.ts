@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateAppUser } from "../../../lib/app-users";
+import { authenticateAppUser, getAppUserSessionById } from "../../../lib/app-users";
 import { normalizeUsername } from "../../../lib/auth";
 import {
   authenticateFallbackAdmin,
@@ -12,10 +12,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getCurrentSessionUser();
+  const currentUser = await getCurrentSessionUser();
+  const user =
+    currentUser?.source === "database" && currentUser.id !== null
+      ? await getAppUserSessionById(currentUser.id)
+      : currentUser;
 
   if (user) {
     await setCurrentSessionUser(user);
+  } else if (currentUser) {
+    await clearCurrentSessionUser();
   }
 
   return NextResponse.json({ data: { authenticated: Boolean(user), user } });

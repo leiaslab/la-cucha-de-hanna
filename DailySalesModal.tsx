@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type PaymentMethod, type StockUnit } from "./db";
+import { db, type PaymentMethod, type ShiftExpense, type StockUnit } from "./db";
 import { getPaymentMethodLabel } from "./PaymentMethodDialog";
 import { formatQuantity, formatSaleItemQuantity, getLineTotal } from "./saleUtils";
 import { showToast } from "./Toast";
@@ -34,7 +34,13 @@ type CalendarDaySummary = {
   dayNumber: number;
   total: number;
   orderCount: number;
+  expenseTotal: number;
   isCurrentMonth: boolean;
+};
+
+type ExpenseWithContext = ShiftExpense & {
+  userLabel: string;
+  localLabel: string;
 };
 
 function toDateKey(date: Date) {
@@ -83,6 +89,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
       .between(start.getTime(), end.getTime(), true, true)
       .toArray();
   });
+  const monthShifts = useLiveQuery(() => db.shifts.toArray());
 
   const monthLabel = useMemo(
     () =>
@@ -127,8 +134,55 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     });
   }, [monthOrders, selectedCashier, selectedLocal]);
 
+  const monthExpenses = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    const userNamesById = new Map<number, string>();
+    const localNamesById = new Map<number, string>();
+
+    (monthOrders ?? []).forEach((order) => {
+      if (order.userId && order.userFullName) {
+        userNamesById.set(order.userId, order.userFullName);
+      }
+      if (order.localId && order.localName) {
+        localNamesById.set(order.localId, order.localName);
+      }
+    });
+
+    return (monthShifts ?? []).flatMap((shift) =>
+      (shift.expenses ?? [])
+        .filter((expense) => expense.createdAt >= monthStart && expense.createdAt <= monthEnd)
+        .map<ExpenseWithContext>((expense) => ({
+          ...expense,
+          userLabel:
+            expense.userFullName ??
+            (expense.userId ? userNamesById.get(expense.userId) : undefined) ??
+            (user && expense.userId === user.id ? user.fullName : "Sin usuario"),
+          localLabel:
+            expense.localName ??
+            shift.localName ??
+            (expense.localId ? localNamesById.get(expense.localId) : undefined) ??
+            user?.localName ??
+            "Sin local",
+        })),
+    );
+  }, [monthOrders, monthShifts, user]);
+
+  const filteredMonthExpenses = useMemo(
+    () =>
+      monthExpenses.filter((expense) => {
+        const matchesCashier = selectedCashier === "all" || expense.userLabel === selectedCashier;
+        const matchesLocal = selectedLocal === "all" || expense.localLabel === selectedLocal;
+        return matchesCashier && matchesLocal;
+      }),
+    [monthExpenses, selectedCashier, selectedLocal],
+  );
+
   const totalSales = filteredMonthOrders.reduce((acc, order) => acc + order.total, 0);
   const totalOrders = filteredMonthOrders.length;
+  const totalExpenses = filteredMonthExpenses.reduce((acc, expense) => acc + expense.amount, 0);
+  const monthlyResult = totalSales - totalExpenses;
 
   const paymentSummary = useMemo(() => {
     const base: Record<PaymentMethod, number> = {
@@ -229,21 +283,18 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     return summary;
   }, [filteredMonthOrders]);
 
-  const resolvedSelectedDateKey = useMemo(() => {
-    if (filteredMonthOrders.length === 0) {
-      return selectedDateKey;
-    }
+  const calendarExpensesMap = useMemo(() => {
+    const summary = new Map<string, number>();
 
-    const hasSelectedDaySales = filteredMonthOrders.some(
-      (order) => toDateKey(new Date(order.createdAt)) === selectedDateKey,
-    );
+    filteredMonthExpenses.forEach((expense) => {
+      const dateKey = toDateKey(new Date(expense.createdAt));
+      summary.set(dateKey, (summary.get(dateKey) ?? 0) + expense.amount);
+    });
 
-    if (hasSelectedDaySales) {
-      return selectedDateKey;
-    }
+    return summary;
+  }, [filteredMonthExpenses]);
 
-    return toDateKey(new Date(filteredMonthOrders[0].createdAt));
-  }, [filteredMonthOrders, selectedDateKey]);
+  const resolvedSelectedDateKey = selectedDateKey;
 
   const selectedDayOrders = useMemo(() => {
     return filteredMonthOrders
@@ -293,6 +344,17 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
     () => selectedDayOrders.reduce((acc, order) => acc + order.total, 0),
     [selectedDayOrders],
   );
+  const selectedDayExpenses = useMemo(
+    () =>
+      filteredMonthExpenses
+        .filter((expense) => toDateKey(new Date(expense.createdAt)) === resolvedSelectedDateKey)
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [filteredMonthExpenses, resolvedSelectedDateKey],
+  );
+  const selectedDayExpenseTotal = useMemo(
+    () => selectedDayExpenses.reduce((acc, expense) => acc + expense.amount, 0),
+    [selectedDayExpenses],
+  );
 
   const calendarDays = useMemo(() => {
     const now = new Date();
@@ -313,12 +375,13 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
         dayNumber: current.getDate(),
         total: summary?.total ?? 0,
         orderCount: summary?.orderCount ?? 0,
+        expenseTotal: calendarExpensesMap.get(dateKey) ?? 0,
         isCurrentMonth: current.getMonth() === now.getMonth(),
       });
     }
 
     return days;
-  }, [calendarSalesMap]);
+  }, [calendarExpensesMap, calendarSalesMap]);
 
   const handleExportPdf = () => {
     const cashierRows =
@@ -372,6 +435,25 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
             .join("")
         : `<tr><td colspan="6" class="center muted">No hubo ventas en la fecha seleccionada.</td></tr>`;
 
+    const selectedDayExpenseRows =
+      selectedDayExpenses.length > 0
+        ? selectedDayExpenses
+            .map(
+              (expense) => `
+                <tr>
+                  <td>${new Date(expense.createdAt).toLocaleTimeString("es-AR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}</td>
+                  <td>${escapeReportHtml(expense.reason)}</td>
+                  <td>${escapeReportHtml(expense.localLabel)}</td>
+                  <td class="right">$${expense.amount.toLocaleString("es-AR")}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `<tr><td colspan="4" class="center muted">No hubo gastos en la fecha seleccionada.</td></tr>`;
+
     const productRows =
       productSummary.length > 0
         ? productSummary
@@ -395,9 +477,9 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
 
         <div class="cards cards-4">
           <div class="card"><div class="label">Ventas totales</div><div class="value">$${totalSales.toLocaleString("es-AR")}</div></div>
-          <div class="card"><div class="label">Pedidos realizados</div><div class="value">${totalOrders}</div></div>
-          <div class="card"><div class="label">Productos vendidos</div><div class="value">${productSummary.length}</div></div>
-          <div class="card"><div class="label">Promedio por venta</div><div class="value">$${(totalOrders > 0 ? Math.round(totalSales / totalOrders) : 0).toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Gastos del mes</div><div class="value">$${totalExpenses.toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Resultado del mes</div><div class="value">$${monthlyResult.toLocaleString("es-AR")}</div></div>
+          <div class="card"><div class="label">Ventas realizadas</div><div class="value">${totalOrders}</div></div>
         </div>
 
         <div class="cards cards-3">
@@ -433,13 +515,21 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
             </table>
           </section>
           <section class="section">
-            <h2>Resumen por productos</h2>
+            <h2>Gastos de la fecha seleccionada</h2>
             <table>
-              <thead><tr><th>Producto</th><th class="right">Cantidad</th><th class="right">Total</th></tr></thead>
-              <tbody>${productRows}</tbody>
+              <thead><tr><th>Hora</th><th>Motivo</th><th>Local</th><th class="right">Importe</th></tr></thead>
+              <tbody>${selectedDayExpenseRows}</tbody>
             </table>
           </section>
         </div>
+
+        <section class="section">
+          <h2>Resumen por productos</h2>
+          <table>
+            <thead><tr><th>Producto</th><th class="right">Cantidad</th><th class="right">Total</th></tr></thead>
+            <tbody>${productRows}</tbody>
+          </table>
+        </section>
       `,
       () => window.print(),
     );
@@ -504,7 +594,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
           <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
             <div>
               <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
-                Resumen de ventas del mes
+                Resumen mensual y almanaque
               </h2>
               <p className="mt-1 text-sm font-medium capitalize text-slate-500 dark:text-slate-400">
                 {monthLabel}
@@ -638,36 +728,33 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
 
           <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
             <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
-              <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Ventas totales</p>
+              <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Ventas del mes</p>
               <p className="text-3xl font-extrabold text-blue-900 dark:text-blue-100">
                 ${totalSales.toLocaleString("es-AR")}
               </p>
             </div>
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
-              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                Pedidos realizados
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 dark:border-rose-800 dark:bg-rose-900/20">
+              <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
+                Gastos del mes
               </p>
-              <p className="text-3xl font-extrabold text-emerald-900 dark:text-emerald-100">
-                {totalOrders}
+              <p className="text-3xl font-extrabold text-rose-900 dark:text-rose-100">
+                ${totalExpenses.toLocaleString("es-AR")}
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Productos vendidos
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+              <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                Resultado del mes
               </p>
-              <p className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
-                {productSummary.length}
+              <p className="text-3xl font-extrabold text-emerald-900 dark:text-emerald-100">
+                ${monthlyResult.toLocaleString("es-AR")}
               </p>
             </div>
             <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
               <p className="text-sm font-medium text-violet-600 dark:text-violet-400">
-                Promedio por venta
+                Ventas realizadas
               </p>
               <p className="text-3xl font-extrabold text-violet-900 dark:text-violet-100">
-                $
-                {totalOrders > 0
-                  ? Math.round(totalSales / totalOrders).toLocaleString("es-AR")
-                  : 0}
+                {totalOrders}
               </p>
             </div>
           </div>
@@ -770,7 +857,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
                   Calendario de ventas
                 </h3>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Toca un dia para ver el detalle por local y cajero.
+                  Toca un dia para ver sus ventas, gastos y resultado.
                 </p>
               </div>
               <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
@@ -809,8 +896,15 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
                         </span>
                       )}
                     </div>
-                    <div className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      ${Math.round(day.total).toLocaleString("es-AR")}
+                    <div className="mt-3 space-y-1 text-[11px] font-semibold">
+                      <div className="text-blue-600 dark:text-blue-400">
+                        V ${Math.round(day.total).toLocaleString("es-AR")}
+                      </div>
+                      {day.expenseTotal > 0 && (
+                        <div className="text-rose-600 dark:text-rose-400">
+                          G ${Math.round(day.expenseTotal).toLocaleString("es-AR")}
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
@@ -818,42 +912,77 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
             </div>
           </div>
 
+          <section className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <h3 className="text-sm font-bold capitalize text-slate-700 dark:text-slate-200">
+              Resumen del {selectedDayLabel}
+            </h3>
+            <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-500">Ventas</p>
+                <p className="mt-2 text-2xl font-black text-blue-900 dark:text-blue-100">
+                  ${selectedDayTotal.toLocaleString("es-AR")}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 dark:border-rose-800 dark:bg-rose-900/20">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-rose-500">Gastos</p>
+                <p className="mt-2 text-2xl font-black text-rose-900 dark:text-rose-100">
+                  ${selectedDayExpenseTotal.toLocaleString("es-AR")}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-500">Resultado</p>
+                <p className="mt-2 text-2xl font-black text-emerald-900 dark:text-emerald-100">
+                  ${(selectedDayTotal - selectedDayExpenseTotal).toLocaleString("es-AR")}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-500">Operaciones</p>
+                <p className="mt-2 text-2xl font-black text-violet-900 dark:text-violet-100">
+                  {selectedDayOrders.length}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                Gastos de ese dia
+              </p>
+              {selectedDayExpenses.length === 0 ? (
+                <p className="mt-2 text-sm italic text-slate-500 dark:text-slate-400">
+                  No se cargaron gastos en esa fecha.
+                </p>
+              ) : (
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  {selectedDayExpenses.map((expense) => (
+                    <div
+                      key={expense.id}
+                      className="flex items-start justify-between gap-3 rounded-2xl border border-rose-100 bg-white px-4 py-3 dark:border-rose-900/40 dark:bg-slate-900/50"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-slate-100">{expense.reason}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {new Date(expense.createdAt).toLocaleTimeString("es-AR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })} {user?.role === "admin" ? `• ${expense.localLabel} • ${expense.userLabel}` : ""}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-black text-rose-600 dark:text-rose-400">
+                        -${expense.amount.toLocaleString("es-AR")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
             {user?.role === "admin" && (
               <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
                   {`Ventas del dia: ${selectedDayLabel}`}
                 </h3>
-
-                <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-500">
-                      Total del dia
-                    </p>
-                    <p className="mt-2 text-2xl font-black text-blue-900 dark:text-blue-100">
-                      ${selectedDayTotal.toLocaleString("es-AR")}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-500">
-                      Pedidos del dia
-                    </p>
-                    <p className="mt-2 text-2xl font-black text-emerald-900 dark:text-emerald-100">
-                      {selectedDayOrders.length}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-900/20">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-500">
-                      Promedio del dia
-                    </p>
-                    <p className="mt-2 text-2xl font-black text-violet-900 dark:text-violet-100">
-                      $
-                      {selectedDayOrders.length > 0
-                        ? Math.round(selectedDayTotal / selectedDayOrders.length).toLocaleString("es-AR")
-                        : 0}
-                    </p>
-                  </div>
-                </div>
 
                 <div className="grid min-h-0 gap-4 xl:grid-cols-2">
                   <div className="space-y-3 overflow-y-auto pr-1">
@@ -1018,7 +1147,7 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
       <div className="month-summary-print hidden bg-white px-6 py-6 text-black print:block">
         <div className="mx-auto w-full max-w-[760px]">
           <div className="mb-5 border-b border-black pb-3">
-            <h1 className="text-2xl font-black uppercase">La cucha de Hanna</h1>
+            <h1 className="text-2xl font-black uppercase">VENTAS</h1>
             <p className="mt-1 text-sm font-medium capitalize">Resumen de ventas del mes - {monthLabel}</p>
           </div>
 
@@ -1028,8 +1157,8 @@ export function DailySalesModal({ isOpen, onClose }: DailySalesModalProps) {
               <p className="mt-1 text-2xl font-black">${totalSales.toLocaleString("es-AR")}</p>
             </div>
             <div className="rounded-xl border border-black px-3 py-2">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">Pedidos</p>
-              <p className="mt-1 text-2xl font-black">{totalOrders}</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">Gastos del mes</p>
+              <p className="mt-1 text-2xl font-black">${totalExpenses.toLocaleString("es-AR")}</p>
             </div>
             <div className="rounded-xl border border-black px-3 py-2">
               <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500">Efectivo</p>
