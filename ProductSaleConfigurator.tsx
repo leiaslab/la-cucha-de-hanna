@@ -293,7 +293,7 @@ export function ProductSaleConfigurator({
         >
           <span>
             {freePriceMode
-              ? `${product.name} · sin movimiento de stock`
+              ? product.name
               : isQuickSale
                 ? "Venta rápida"
               : `${product.saleType === "variable" ? "Tipo" : "Cantidad"}: ${quantityPreview}`}

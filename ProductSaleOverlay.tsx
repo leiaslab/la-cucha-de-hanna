@@ -60,7 +60,7 @@ export function ProductSaleOverlay({
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">
-                {isQuickSale ? "Venta rápida" : "Venta sin control de stock"}
+                {isQuickSale ? "Venta rápida" : "Venta de producto"}
               </p>
               <h2 className="mt-1 text-2xl font-black text-slate-900">
                 {isQuickSale ? "Ingresá el importe" : product.name}

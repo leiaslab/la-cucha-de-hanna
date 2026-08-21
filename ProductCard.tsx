@@ -48,6 +48,7 @@ export const ProductCard = memo(function ProductCard({
     : product.lowStockAlertThreshold ?? 5;
   const isVariableProduct = product.saleType === "variable";
   const isQuickSale = isQuickSaleProduct(product);
+  const showStockBadge = isQuickSale || (stockControlEnabled && !isVariableProduct);
   const isLowStock = stockControlEnabled && !isVariableProduct && displayedStock > 0 && displayedStock <= lowStockThreshold;
   const nameFontSize = getAdaptiveFontSize(product.name, isKioskMode ? 13.5 : 11.5, isKioskMode ? 9.5 : 8.5, 0.12);
   const priceFontSize = getAdaptiveFontSize(priceLabel, isKioskMode ? 15.5 : 13.5, isKioskMode ? 11.5 : 10, 0.1);
@@ -94,19 +95,21 @@ export const ProductCard = memo(function ProductCard({
       tabIndex={0}
     >
       <div className={`flex flex-col ${isKioskMode ? "gap-2 p-2" : "gap-1.5 p-1.5"}`}>
-        <div
-          className={`absolute right-2 top-2 z-10 flex items-center gap-1.5 border font-bold tracking-[0.02em] transition-transform group-hover:scale-105 ${
-            isKioskMode ? "rounded-[1rem] px-3 py-2" : "rounded-[0.95rem] px-2.5 py-1.5"
-          } ${stockBadgeClasses}`}
-          title={isVariableProduct || !stockControlEnabled ? "Producto sin control de stock" : canManageProducts ? "Stock global" : "Stock del local"}
-        >
-          <span className={`${isKioskMode ? "text-[9px]" : "text-[8px]"} uppercase tracking-[0.18em] text-white/80`}>
-            {isQuickSale ? "Cobro" : isVariableProduct || !stockControlEnabled ? "Venta" : "Stock"}
-          </span>
-          <span className={`${isKioskMode ? "text-[11px]" : "text-[10px]"} font-black leading-none`}>
-            {isQuickSale ? "Rápido" : isVariableProduct || !stockControlEnabled ? "Sin control" : displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
-          </span>
-        </div>
+        {showStockBadge && (
+          <div
+            className={`absolute right-2 top-2 z-10 flex items-center gap-1.5 border font-bold tracking-[0.02em] transition-transform group-hover:scale-105 ${
+              isKioskMode ? "rounded-[1rem] px-3 py-2" : "rounded-[0.95rem] px-2.5 py-1.5"
+            } ${stockBadgeClasses}`}
+            title={isQuickSale ? "Venta rápida" : canManageProducts ? "Stock global" : "Stock del local"}
+          >
+            <span className={`${isKioskMode ? "text-[9px]" : "text-[8px]"} uppercase tracking-[0.18em] text-white/80`}>
+              {isQuickSale ? "Cobro" : "Stock"}
+            </span>
+            <span className={`${isKioskMode ? "text-[11px]" : "text-[10px]"} font-black leading-none`}>
+              {isQuickSale ? "Rápido" : displayedStock <= 0 ? "Sin stock" : stockBadgeLabel}
+            </span>
+          </div>
+        )}
 
         <div
           className={`relative flex items-center justify-center overflow-hidden bg-white shadow-inner dark:bg-slate-800/30 ${
